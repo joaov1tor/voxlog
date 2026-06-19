@@ -4,11 +4,35 @@ local RECORD = REPO .. "/recorder/record.sh"
 local VOXLOG = REPO .. "/.venv/bin/voxlog"
 local STAGING = os.getenv("HOME") .. "/Gravacoes/staging"
 
-local M = { task = nil, current_file = nil, current_tipo = nil, current_origem = nil, auto = false, auto_app = nil }
+local M = { task = nil, current_file = nil, current_tipo = nil, current_origem = nil, auto = false, auto_app = nil, indicator = nil }
 local menubar = hs.menubar.new()
 
 local function setIcon(recording)
   menubar:setTitle(recording and "🔴 voxlog" or "🎙️ voxlog")
+end
+
+-- Indicador permanente na tela enquanto grava (canto superior direito)
+local function showIndicator(label)
+  if M.indicator then M.indicator:delete() end
+  local f = hs.screen.mainScreen():frame()
+  local w, h = 230, 40
+  M.indicator = hs.canvas.new({ x = f.x + f.w - w - 18, y = f.y + 18, w = w, h = h })
+  M.indicator:appendElements(
+    { type = "rectangle", action = "fill",
+      roundedRectRadii = { xRadius = 10, yRadius = 10 },
+      fillColor = { red = 0, green = 0, blue = 0, alpha = 0.78 } },
+    { type = "circle", action = "fill", center = { x = 24, y = 20 }, radius = 7,
+      fillColor = { red = 0.92, green = 0.12, blue = 0.12, alpha = 1 } },
+    { type = "text", text = "GRAVANDO · " .. label,
+      frame = { x = 40, y = 9, w = w - 46, h = 24 },
+      textColor = { white = 1 }, textSize = 15 }
+  )
+  M.indicator:level(hs.canvas.windowLevels.overlay)
+  M.indicator:show()
+end
+
+local function hideIndicator()
+  if M.indicator then M.indicator:delete(); M.indicator = nil end
 end
 
 local function process(file, tipo, origem)
@@ -23,6 +47,8 @@ local function stopRecording()
   M.task:terminate()                 -- SIGTERM → ffmpeg finaliza o arquivo
   M.task = nil
   setIcon(false)
+  hideIndicator()
+  hs.alert.show("⏹ voxlog: gravação encerrada — processando…", 2)
   local f, t, o = M.current_file, M.current_tipo, M.current_origem
   M.current_file = nil
   hs.timer.doAfter(1.0, function() process(f, t, o) end)
@@ -42,6 +68,8 @@ local function startRecording(tipo, origem)
   M.current_file = nil
   M.task:start()
   setIcon(true)
+  local label = (tipo == "reuniao") and ("reunião (" .. tostring(origem) .. ")") or "nota"
+  showIndicator(label)
 end
 
 local function toggleNote()

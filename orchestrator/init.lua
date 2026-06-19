@@ -1,5 +1,5 @@
 -- voxlog orchestrator (Hammerspoon)
-local REPO   = os.getenv("HOME") .. "/Dropbox/Developments/gravador_audio"
+local REPO   = "/Volumes/SSD/Dropbox/Developments/gravador_audio"
 local RECORD = REPO .. "/recorder/record.sh"
 local VOXLOG = REPO .. "/.venv/bin/voxlog"
 local STAGING = os.getenv("HOME") .. "/Gravacoes/staging"
@@ -23,9 +23,9 @@ local function stopRecording()
   M.task:terminate()                 -- SIGTERM → ffmpeg finaliza o arquivo
   M.task = nil
   setIcon(false)
-  hs.timer.doAfter(1.0, function()
-    process(M.current_file, M.current_tipo, M.current_origem)
-  end)
+  local f, t, o = M.current_file, M.current_tipo, M.current_origem
+  M.current_file = nil
+  hs.timer.doAfter(1.0, function() process(f, t, o) end)
 end
 
 local function startRecording(tipo, origem)
@@ -34,7 +34,7 @@ local function startRecording(tipo, origem)
   M.task = hs.task.new("/bin/bash", function() end,
     function(_, stdout, _)            -- streaming callback: 1a linha = caminho
       if stdout and not M.current_file then
-        M.current_file = stdout:gsub("%s+$", "")
+        M.current_file = stdout:match("^%s*([^\n]+)")
       end
       return true
     end,

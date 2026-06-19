@@ -1,0 +1,77 @@
+import json
+import pytest
+from voxlog.config import Config
+from voxlog.summarize import Summary, parse_summary_json, summarize, build_prompt
+
+PAYLOAD = {
+    "resumo": "Discutiu-se o sprint.",
+    "assunto": "Planejamento Sprint 12",
+    "tags": ["reuniao", "projeto-x"],
+    "participantes": ["João", "Maria"],
+    "acoes": ["Enviar ata"],
+}
+
+
+def test_build_prompt_inclui_transcricao_e_pede_json():
+    p = build_prompt("ola mundo")
+    assert "ola mundo" in p
+    assert "JSON" in p
+
+
+def test_parse_extrai_json_com_lixo_em_volta():
+    raw = "Claro!\n```json\n" + json.dumps(PAYLOAD) + "\n```\nfim"
+    s = parse_summary_json(raw, "codex")
+    assert s.assunto == "Planejamento Sprint 12"
+    assert s.tags == ["reuniao", "projeto-x"]
+    assert s.resumido_por == "codex"
+
+
+def test_summarize_usa_codex_por_padrao():
+    cfg = Config(summarizer="codex")
+    calls = []
+
+    def runner(cmd, input_text):
+        calls.append(cmd[0])
+        return json.dumps(PAYLOAD)
+
+    s = summarize("t", cfg, runner=runner)
+    assert s.resumido_por == "codex"
+    assert calls[0] == "codex"
+
+
+def test_summarize_fallback_para_ollama_quando_codex_falha():
+    cfg = Config(summarizer="codex")
+    used = []
+
+    def runner(cmd, input_text):
+        used.append(cmd[0])
+        if cmd[0] == "codex":
+            raise RuntimeError("offline")
+        return json.dumps(PAYLOAD)
+
+    s = summarize("t", cfg, runner=runner)
+    assert used == ["codex", "ollama"]
+    assert s.resumido_por == "ollama"
+
+
+def test_force_local_pula_codex():
+    cfg = Config(summarizer="codex")
+    used = []
+
+    def runner(cmd, input_text):
+        used.append(cmd[0])
+        return json.dumps(PAYLOAD)
+
+    summarize("t", cfg, force_local=True, runner=runner)
+    assert used == ["ollama"]
+
+
+def test_tudo_falha_retorna_nenhum():
+    cfg = Config(summarizer="codex")
+
+    def runner(cmd, input_text):
+        raise RuntimeError("boom")
+
+    s = summarize("t", cfg, runner=runner)
+    assert s.resumido_por == "nenhum"
+    assert s.resumo == ""

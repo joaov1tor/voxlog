@@ -20,6 +20,9 @@ __pycache__/
 .venv/
 venv/
 .ipynb_checkpoints/
+*.egg-info/
+build/
+dist/
 
 # Node (caso o Hammerspoon/glue use)
 node_modules/

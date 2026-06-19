@@ -1,0 +1,16 @@
+vault_path = "/Volumes/SSD/Dropbox/obsidian/SecundBrain"
+gravacoes_dir = "🎙️ Gravações"
+audios_dir = "🎙️ Gravações/_audios"
+staging_dir = "~/Gravacoes/staging"
+
+whisper_model = "medium"
+whisper_language = ""        # vazio = auto-detect (PT/EN)
+
+summarizer = "codex"         # codex | ollama
+ollama_model = "llama3.1:8b"
+codex_model = ""             # vazio = default do codex
+
+min_duration_sec = 5.0
+
+target_apps = ["zoom.us", "Microsoft Teams", "Discord", "Google Chrome", "Safari", "Arc"]
+ignored_apps = []

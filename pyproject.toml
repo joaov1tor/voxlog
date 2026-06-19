@@ -1,0 +1,15 @@
+[project]
+name = "voxlog"
+version = "0.1.0"
+description = "Captura hibrida de audio no Mac -> notas no Obsidian"
+requires-python = ">=3.11"
+
+[project.scripts]
+voxlog = "voxlog.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

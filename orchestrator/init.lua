@@ -50,9 +50,49 @@ end
 
 hs.hotkey.bind({"alt","cmd"}, "R", toggleNote)
 
+-- ===== Auto-detecção de reunião =====
+local TARGET_APPS = { "zoom.us", "Microsoft Teams", "Discord", "Google Chrome", "Safari", "Arc" }
+local IGNORED_APPS = {}            -- ex.: { "Banco" }
+M.paused = false
+
+local function appRunning(name)
+  return hs.application.find(name) ~= nil
+end
+
+local function activeTargetApp()
+  for _, name in ipairs(IGNORED_APPS) do
+    if appRunning(name) then return nil end
+  end
+  for _, name in ipairs(TARGET_APPS) do
+    if appRunning(name) then return name end
+  end
+  return nil
+end
+
+local function micInUse()
+  local dev = hs.audiodevice.defaultInputDevice()
+  return dev and dev:inUse()
+end
+
+hs.timer.new(3, function()
+  if M.paused then return end
+  local target = activeTargetApp()
+  if (not M.task) and micInUse() and target then
+    startRecording("reuniao", target)          -- auto-início
+    M.auto = true
+  elseif M.task and M.auto and (not micInUse()) then
+    stopRecording()                              -- mic liberado → fim da reunião
+    M.auto = false
+  end
+end):start()
+
+-- itens de menu extras
+local baseMenu = menubar
 menubar:setMenu(function()
   return {
     { title = M.task and "■ Parar gravação" or "● Gravar nota (⌥⌘R)", fn = toggleNote },
+    { title = M.paused and "▶ Retomar auto-detecção" or "⏸ Pausar auto-detecção",
+      fn = function() M.paused = not M.paused end },
     { title = "Abrir staging", fn = function() hs.execute("open " .. STAGING) end },
   }
 end)

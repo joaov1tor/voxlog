@@ -15,7 +15,9 @@ echo "$OUT"
 
 # Descobre o índice do device de áudio pelo nome
 IDX="$(ffmpeg -f avfoundation -list_devices true -i "" 2>&1 \
-  | awk -v name="$DEVICE_NAME" '/AVFoundation audio devices/{a=1} a && $0 ~ name {match($0,/\[([0-9]+)\]/,m); print m[1]; exit}')"
+  | awk -v name="$DEVICE_NAME" '
+      /AVFoundation audio devices/{a=1}
+      a && $0 ~ name {line=$0; gsub(/.*\[/,"",line); gsub(/\].*/,"",line); print line; exit}')"
 : "${IDX:?Aggregate device '$DEVICE_NAME' nao encontrado — rode o setup de audio}"
 
 # -i ":IDX" = sem vídeo, só o device de áudio IDX. AAC 192k.

@@ -1,6 +1,5 @@
 from __future__ import annotations
 import json
-import re
 import subprocess
 from dataclasses import dataclass, field
 from .config import Config
@@ -35,11 +34,23 @@ def build_prompt(transcript: str) -> str:
     return _PROMPT.format(transcript=transcript)
 
 
-def parse_summary_json(raw: str, resumido_por: str) -> Summary:
-    match = re.search(r"\{.*\}", raw, re.DOTALL)
-    if not match:
+def _extract_first_json_object(raw: str) -> str:
+    start = raw.find("{")
+    if start == -1:
         raise ValueError("nenhum JSON encontrado na saída")
-    data = json.loads(match.group(0))
+    depth = 0
+    for i in range(start, len(raw)):
+        if raw[i] == "{":
+            depth += 1
+        elif raw[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return raw[start:i + 1]
+    raise ValueError("JSON não balanceado na saída")
+
+
+def parse_summary_json(raw: str, resumido_por: str) -> Summary:
+    data = json.loads(_extract_first_json_object(raw))
     return Summary(
         resumo=str(data.get("resumo", "")),
         assunto=str(data.get("assunto", "")),
@@ -60,9 +71,10 @@ def _default_runner(cmd: list[str], input_text: str) -> str:
 
 
 def _codex_cmd(cfg: Config) -> list[str]:
-    cmd = ["codex", "exec", "--skip-git-repo-check", "-"]
+    cmd = ["codex", "exec", "--skip-git-repo-check"]
     if cfg.codex_model:
-        cmd[2:2] = ["-m", cfg.codex_model]
+        cmd += ["-m", cfg.codex_model]
+    cmd.append("-")
     return cmd
 
 

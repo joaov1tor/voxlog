@@ -75,3 +75,18 @@ def test_tudo_falha_retorna_nenhum():
     s = summarize("t", cfg, runner=runner)
     assert s.resumido_por == "nenhum"
     assert s.resumo == ""
+
+
+def test_codex_cmd_inclui_modelo_na_ordem_correta():
+    from voxlog.summarize import _codex_cmd
+    cmd = _codex_cmd(Config(codex_model="gpt-x"))
+    assert cmd[:3] == ["codex", "exec", "--skip-git-repo-check"]
+    assert cmd[-1] == "-"
+    assert "gpt-x" in cmd and cmd[cmd.index("-m") + 1] == "gpt-x"
+
+
+def test_parse_pega_primeiro_objeto_balanceado():
+    raw = 'lixo {"resumo": "a", "assunto": "b", "tags": [], "participantes": [], "acoes": []} e mais {"outro": 1}'
+    s = parse_summary_json(raw, "codex")
+    assert s.resumo == "a"
+    assert s.assunto == "b"

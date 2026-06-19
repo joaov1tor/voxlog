@@ -3,6 +3,7 @@ local REPO   = "/Volumes/SSD/Dropbox/Developments/gravador_audio"
 local RECORD = REPO .. "/recorder/record.sh"
 local VOXLOG = REPO .. "/.venv/bin/voxlog"
 local STAGING = os.getenv("HOME") .. "/Gravacoes/staging"
+local LOG = os.getenv("HOME") .. "/Gravacoes/voxlog.log"
 
 local M = { task = nil, current_file = nil, current_tipo = nil, current_origem = nil, auto = false, auto_app = nil, indicator = nil }
 local menubar = hs.menubar.new()
@@ -37,9 +38,15 @@ end
 
 local function process(file, tipo, origem)
   if not file then return end
-  hs.task.new(VOXLOG, function(code, out, err)
-    hs.notify.new({title="voxlog", informativeText=(code==0 and "Nota criada" or "Falha ao processar")}):send()
-  end, {"process", file, "--tipo", tipo, "--origem", origem}):start()
+  -- roda via login shell (/bin/zsh -lc) p/ herdar o PATH completo do usuário
+  -- (whisper/codex/ollama/ffprobe não estão no PATH mínimo do hs.task)
+  local cmd = string.format(
+    "%s process '%s' --tipo '%s' --origem '%s' >> '%s' 2>&1",
+    VOXLOG, file, tipo, origem, LOG)
+  hs.task.new("/bin/zsh", function(code, _, _)
+    hs.notify.new({title="voxlog",
+      informativeText=(code==0 and "Nota criada ✅" or "Falha — ver ~/Gravacoes/voxlog.log ❌")}):send()
+  end, {"-lc", cmd}):start()
 end
 
 local function stopRecording()

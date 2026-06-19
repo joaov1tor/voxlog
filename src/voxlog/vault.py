@@ -2,7 +2,7 @@ from __future__ import annotations
 import re
 import shutil
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from .config import Config
 from .summarize import Summary
@@ -30,10 +30,17 @@ def slugify(s: str) -> str:
     return re.sub(r"[\s_]+", "-", s)
 
 
+def _safe_assunto(assunto: str) -> str:
+    # remove caracteres inválidos em nomes de arquivo, mantendo legibilidade
+    cleaned = re.sub(r'[/\\:*?"<>|]', "-", assunto)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned or "Sem assunto"
+
+
 def note_filename(meta: NoteMeta, assunto: str) -> str:
     hhmm = meta.hora_inicio.replace(":", "")
     label = _TIPO_LABEL.get(meta.tipo, meta.tipo.capitalize())
-    assunto = assunto.strip() or "Sem assunto"
+    assunto = _safe_assunto(assunto)
     return f"{meta.data} {hhmm} — {label} — {assunto}.md"
 
 

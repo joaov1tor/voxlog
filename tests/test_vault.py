@@ -59,3 +59,10 @@ def test_write_note_idempotente_por_hash(tmp_path):
     a2 = tmp_path / "a2.m4a"; a2.write_bytes(b"X")
     p2 = write_note(cfg, _meta(), _summary(), "t", a2)
     assert p1 == p2  # mesma nota, não duplica
+
+
+def test_note_filename_sanitiza_assunto_inseguro():
+    fn = note_filename(_meta(), "Sprint: Q2/2026")
+    assert "/" not in fn
+    assert ":" not in fn
+    assert fn.endswith(".md")

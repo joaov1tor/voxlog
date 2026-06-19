@@ -4,7 +4,7 @@ local RECORD = REPO .. "/recorder/record.sh"
 local VOXLOG = REPO .. "/.venv/bin/voxlog"
 local STAGING = os.getenv("HOME") .. "/Gravacoes/staging"
 
-local M = { task = nil, current_file = nil, current_tipo = nil, current_origem = nil }
+local M = { task = nil, current_file = nil, current_tipo = nil, current_origem = nil, auto = false, auto_app = nil }
 local menubar = hs.menubar.new()
 
 local function setIcon(recording)
@@ -51,7 +51,7 @@ end
 hs.hotkey.bind({"alt","cmd"}, "R", toggleNote)
 
 -- ===== Auto-detecção de reunião =====
-local TARGET_APPS = { "zoom.us", "Microsoft Teams", "Discord", "Google Chrome", "Safari", "Arc" }
+local TARGET_APPS = { "zoom.us", "Microsoft Teams", "com.microsoft.teams2", "Discord", "Google Chrome", "Safari", "Arc" }
 local IGNORED_APPS = {}            -- ex.: { "Banco" }
 M.paused = false
 
@@ -74,20 +74,22 @@ local function micInUse()
   return dev and dev:inUse()
 end
 
-hs.timer.new(3, function()
+M.timer = hs.timer.new(3, function()
   if M.paused then return end
   local target = activeTargetApp()
   if (not M.task) and micInUse() and target then
     startRecording("reuniao", target)          -- auto-início
     M.auto = true
-  elseif M.task and M.auto and (not micInUse()) then
-    stopRecording()                              -- mic liberado → fim da reunião
+    M.auto_app = target
+  elseif M.task and M.auto and M.auto_app and (not appRunning(M.auto_app)) then
+    stopRecording()                              -- app saiu → fim da reunião
     M.auto = false
+    M.auto_app = nil
   end
-end):start()
+end)
+M.timer:start()
 
 -- itens de menu extras
-local baseMenu = menubar
 menubar:setMenu(function()
   return {
     { title = M.task and "■ Parar gravação" or "● Gravar nota (⌥⌘R)", fn = toggleNote },

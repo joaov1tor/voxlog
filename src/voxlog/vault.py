@@ -45,8 +45,8 @@ def note_filename(meta: NoteMeta, assunto: str) -> str:
 
 
 def render_note(meta: NoteMeta, summary: Summary, transcript: str) -> str:
-    tags = "[" + ", ".join(summary.tags) + "]"
-    parts = "[" + ", ".join(summary.participantes) + "]"
+    tags = "[" + ", ".join(f'"{t}"' for t in summary.tags) + "]"
+    parts = "[" + ", ".join(f'"{p}"' for p in summary.participantes) + "]"
     acoes = "\n".join(f"- [ ] {a}" for a in summary.acoes) or "- (nenhum)"
     fm = (
         "---\n"

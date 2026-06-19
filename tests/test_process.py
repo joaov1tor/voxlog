@@ -39,3 +39,16 @@ def test_cli_erro_retorna_1(tmp_path):
     rc = main(["process", "/caminho/inexistente_xyz.m4a",
                "--config", str(missing_cfg)])
     assert rc == 1
+
+
+def test_usa_hora_de_inicio_do_nome_do_arquivo(tmp_path):
+    audio = tmp_path / "20260618-143022_reuniao.m4a"
+    audio.write_bytes(b"AUDIO")
+    cfg = Config(vault_path=tmp_path / "v", gravacoes_dir="G", audios_dir="G/_audios")
+    out = process_audio(audio, "reuniao", "Zoom", cfg,
+                        _transcribe=lambda *a, **k: "t",
+                        _summarize=lambda *a, **k: Summary(assunto="X", resumido_por="codex"),
+                        _duration=lambda p, runner=None: 60.0)
+    assert out is not None
+    assert "2026-06-18 1430" in out.name
+    assert 'hora_inicio: "14:30"' in out.read_text(encoding="utf-8")

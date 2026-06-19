@@ -1,5 +1,6 @@
 from __future__ import annotations
 import hashlib
+import re
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -29,6 +30,18 @@ def audio_duration_sec(path: Path, runner=None) -> float:
         return 0.0
 
 
+def _start_time(audio_path: Path) -> datetime:
+    """Extract recording start time from filename (YYYYMMDD-HHMMSS_<tipo>.m4a),
+    falling back to st_birthtime (macOS) or st_mtime."""
+    m = re.match(r"(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})_", audio_path.name)
+    if m:
+        y, mo, d, h, mi, s = (int(g) for g in m.groups())
+        return datetime(y, mo, d, h, mi, s)
+    st = audio_path.stat()
+    ts = getattr(st, "st_birthtime", None) or st.st_mtime
+    return datetime.fromtimestamp(ts)
+
+
 def process_audio(audio_path: Path, tipo: str, origem: str, cfg: Config,
                   force_local: bool = False, *, _transcribe=None,
                   _summarize=None, _duration=None) -> Path | None:
@@ -41,13 +54,13 @@ def process_audio(audio_path: Path, tipo: str, origem: str, cfg: Config,
     transcript = (_transcribe or _do_transcribe)(audio_path, cfg)
     summary = (_summarize or _do_summarize)(transcript, cfg, force_local)
 
-    mtime = datetime.fromtimestamp(audio_path.stat().st_mtime)
-    hhmm = mtime.strftime("%H%M")
-    audio_filename = f"{mtime.strftime('%Y-%m-%d')} {hhmm} {tipo}.m4a"
+    start = _start_time(audio_path)
+    hhmm = start.strftime("%H%M")
+    audio_filename = f"{start.strftime('%Y-%m-%d')} {hhmm} {tipo}.m4a"
     meta = NoteMeta(
         tipo=tipo,
-        data=mtime.strftime("%Y-%m-%d"),
-        hora_inicio=mtime.strftime("%H:%M"),
+        data=start.strftime("%Y-%m-%d"),
+        hora_inicio=start.strftime("%H:%M"),
         duracao_min=max(1, round(duration / 60)),
         origem=origem,
         audio_filename=audio_filename,

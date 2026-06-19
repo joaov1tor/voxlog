@@ -20,8 +20,12 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     cfg = load_config(Path(args.config))
-    out = process_audio(Path(args.audio), args.tipo, args.origem, cfg,
-                        force_local=args.local)
+    try:
+        out = process_audio(Path(args.audio), args.tipo, args.origem, cfg,
+                            force_local=args.local)
+    except Exception as e:
+        print(f"voxlog: erro ao processar '{args.audio}': {e}", file=sys.stderr)
+        return 1
     if out is None:
         print("descartado (clipe curto)")
         return 0

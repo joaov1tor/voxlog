@@ -31,3 +31,11 @@ def test_processa_e_cria_nota(tmp_path):
 def test_sha1_estavel(tmp_path):
     p = tmp_path / "a"; p.write_bytes(b"abc")
     assert file_sha1(p) == "a9993e364706816aba3e25717850c26c9cd0d89d"
+
+
+def test_cli_erro_retorna_1(tmp_path):
+    from voxlog.cli import main
+    missing_cfg = tmp_path / "nao_existe.toml"
+    rc = main(["process", "/caminho/inexistente_xyz.m4a",
+               "--config", str(missing_cfg)])
+    assert rc == 1

@@ -103,3 +103,38 @@ def summarize(transcript: str, cfg: Config, force_local: bool = False, runner=No
         except Exception:
             continue
     return Summary(resumido_por="nenhum")
+
+
+_COMBINE_PROMPT = """Você recebe vários RESUMOS PARCIAIS de segmentos de uma mesma
+reunião, em ordem. Combine tudo em UM resumo coeso. Responda APENAS com um objeto
+JSON válido com as chaves: "resumo" (string), "assunto" (string curta), "tags"
+(array), "participantes" (array), "acoes" (array consolidada).
+
+RESUMOS PARCIAIS:
+\"\"\"
+{parciais}
+\"\"\"
+"""
+
+
+def summarize_segments(transcripts, cfg, force_local: bool = False, runner=None) -> Summary:
+    transcripts = [t for t in transcripts if t and t.strip()]
+    if not transcripts:
+        return Summary(resumido_por="nenhum")
+    if len(transcripts) == 1:
+        return summarize(transcripts[0], cfg, force_local=force_local, runner=runner)
+    # resume cada segmento, depois combina
+    parciais = []
+    for t in transcripts:
+        s = summarize(t, cfg, force_local=force_local, runner=runner)
+        parciais.append(s.resumo or t[:500])
+    run = runner or _default_runner
+    backends = ([("ollama", _ollama_cmd(cfg))] if (force_local or cfg.summarizer == "ollama")
+                else [("codex", _codex_cmd(cfg))])
+    prompt = _COMBINE_PROMPT.format(parciais="\n\n".join(parciais))
+    for name, cmd in backends:
+        try:
+            return parse_summary_json(run(cmd, prompt), name)
+        except Exception:
+            continue
+    return Summary(resumido_por="nenhum")

@@ -1,7 +1,7 @@
 import json
 import pytest
 from voxlog.config import Config
-from voxlog.summarize import Summary, parse_summary_json, summarize, build_prompt
+from voxlog.summarize import Summary, parse_summary_json, summarize, build_prompt, summarize_segments
 
 PAYLOAD = {
     "resumo": "Discutiu-se o sprint.",
@@ -89,3 +89,27 @@ def test_parse_pega_primeiro_objeto_balanceado():
     s = parse_summary_json(raw, "codex")
     assert s.resumo == "a"
     assert s.assunto == "b"
+
+
+def test_summarize_segments_um_so_delega():
+    cfg = Config(summarizer="codex")
+    def runner(cmd, input_text):
+        return json.dumps(PAYLOAD)
+    s = summarize_segments(["transcricao unica"], cfg, runner=runner)
+    assert s.assunto == "Planejamento Sprint 12"
+    assert s.resumido_por == "codex"
+
+
+def test_summarize_segments_combina_varios():
+    cfg = Config(summarizer="codex")
+    calls = []
+    final = {"resumo": "resumo final", "assunto": "Reuniao Longa",
+             "tags": ["x"], "participantes": ["Ana"], "acoes": ["fazer y"]}
+    def runner(cmd, input_text):
+        calls.append(input_text)
+        # 2 parciais + 1 final = 3 chamadas; a final recebe os parciais juntos
+        return json.dumps(final)
+    s = summarize_segments(["seg1", "seg2"], cfg, runner=runner)
+    assert len(calls) == 3                      # 2 segmentos + combine
+    assert s.assunto == "Reuniao Longa"
+    assert s.resumido_por == "codex"

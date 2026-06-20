@@ -7,8 +7,8 @@ set -euo pipefail
 # Hammerspoon (hs.task) roda com PATH mínimo — garanta o Homebrew no PATH p/ achar o ffmpeg
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 
-TIPO="${1:?uso: record.sh <tipo> <staging_dir>}"
-STAGING="${2:?uso: record.sh <tipo> <staging_dir>}"
+TIPO="${1:?uso: record.sh <tipo> <staging_dir> [segment_seconds]}"
+STAGING="${2:?uso: record.sh <tipo> <staging_dir> [segment_seconds]}"
 DEVICE_NAME="voxlog-Aggregate"
 
 mkdir -p "$STAGING"

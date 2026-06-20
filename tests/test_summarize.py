@@ -111,5 +111,6 @@ def test_summarize_segments_combina_varios():
         return json.dumps(final)
     s = summarize_segments(["seg1", "seg2"], cfg, runner=runner)
     assert len(calls) == 3                      # 2 segmentos + combine
+    assert "RESUMOS PARCIAIS" in calls[2]   # 3a chamada = passe de combine
     assert s.assunto == "Reuniao Longa"
     assert s.resumido_por == "codex"

@@ -63,7 +63,7 @@ local function startRecording(tipo, origem)
   if M.task then return end
   M.current_tipo, M.current_origem = tipo, origem
   M.task = hs.task.new("/bin/bash", function() end,
-    function(_, stdout, _)            -- streaming callback: 1a linha = caminho
+    function(_, stdout, _)            -- streaming callback: 1a linha = session id
       if stdout and not M.current_file then
         M.current_file = stdout:match("^%s*([^\n]+)")
       end

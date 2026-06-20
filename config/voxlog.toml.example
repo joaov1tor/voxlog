@@ -1,18 +1,32 @@
-vault_path = "/Volumes/SSD/Dropbox/obsidian/SecundBrain"
+# Copie para ~/.config/voxlog/voxlog.toml e ajuste para a SUA máquina.
+
+# Pasta do seu vault do Obsidian (onde as notas serão criadas)
+vault_path = "~/Obsidian/MeuVault"
 gravacoes_dir = "🎙️ Gravações"
 audios_dir = "🎙️ Gravações/_audios"
-staging_dir = "/Volumes/SSD/Gravacoes/staging"   # SSD externo (Mac com pouco disco)
 
-whisper_model = "medium"     # usado só no fallback local
-whisper_language = "pt"
-# Whisper-GPU remoto (faster-whisper large-v3, API OpenAI-compat). Vazio = local.
-whisper_endpoint = "https://avell-ai-server.tail99394e.ts.net:5050"
+# Onde os segmentos temporários ficam durante a gravação.
+# Se o disco interno for pequeno, aponte para um SSD externo (ex: /Volumes/SSD/Gravacoes/staging)
+staging_dir = "~/voxlog/staging"
 
-summarizer = "codex"         # codex | ollama
-ollama_model = "llama3.1:8b"
-codex_model = ""             # vazio = default do codex
+# ===== Transcrição (Whisper) =====
+# OPÇÃO A — LOCAL (grátis, roda no seu Mac; deixe whisper_endpoint vazio):
+#   modelos: tiny < base < small < medium < large-v3 (mais qualidade = mais lento/pesado)
+whisper_model = "medium"
+whisper_language = "pt"        # "" = autodetect
+# OPÇÃO B — WEB/REMOTO (mais qualidade, não carrega o Mac): aponte para um serviço
+#   compatível com a API OpenAI (/v1/audio/transcriptions). Ex.: faster-whisper-server
+#   próprio numa GPU, ou um provedor de mercado. Vazio = usa o local acima.
+whisper_endpoint = ""          # ex.: "https://meu-servidor:5050"
+
+# ===== Resumo (LLM) =====
+# summarizer: "codex" (CLI da OpenAI, grátis com assinatura ChatGPT) | "ollama" (local)
+summarizer = "codex"
+codex_model = ""               # vazio = modelo padrão da sua conta
+ollama_model = "llama3.1:8b"   # usado se summarizer = "ollama"
 
 min_duration_sec = 5.0
 
-target_apps = ["zoom.us", "Microsoft Teams", "Discord", "Google Chrome", "Safari", "Arc"]
+# Apps cuja chamada dispara o popup de gravação
+target_apps = ["zoom.us", "Microsoft Teams", "com.microsoft.teams2", "Discord", "Google Chrome", "Safari", "Arc"]
 ignored_apps = []

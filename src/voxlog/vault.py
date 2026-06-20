@@ -44,6 +44,12 @@ def note_filename(meta: NoteMeta, assunto: str) -> str:
     return f"{meta.data} {hhmm} — {label} — {assunto}.md"
 
 
+def _link_assunto(assunto: str) -> str:
+    # remove caracteres que quebram wikilink; mantém o texto p/ o nó do grafo
+    s = re.sub(r"[\[\]|#^]", "", assunto).strip()
+    return s or "Sem assunto"
+
+
 def render_note(meta: NoteMeta, summary: Summary, transcript: str) -> str:
     tags = "[" + ", ".join(f'"{t}"' for t in summary.tags) + "]"
     parts = "[" + ", ".join(f'"{p}"' for p in summary.participantes) + "]"
@@ -64,6 +70,7 @@ def render_note(meta: NoteMeta, summary: Summary, transcript: str) -> str:
         "---\n\n"
     )
     body = (
+        f"Assunto: [[{_link_assunto(summary.assunto)}]]\n\n"  # link p/ agrupar no grafo
         "## 📌 Resumo\n\n"
         f"{summary.resumo or '(sem resumo — reprocessar)'}\n\n"
         "## ✅ Itens de ação\n\n"

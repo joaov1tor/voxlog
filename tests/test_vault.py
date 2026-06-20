@@ -36,6 +36,14 @@ def test_render_note_tem_frontmatter_e_secoes():
     assert "## 📌 Resumo" in md
     assert "- [ ] Enviar ata" in md
     assert "transcricao completa aqui" in md
+    assert "[[Planejamento Sprint 12]]" in md   # link p/ agrupar no grafo
+
+
+def test_render_note_link_assunto_sanitiza_wikilink():
+    s = Summary(resumo="r", assunto="Projeto [X] | fase #1", resumido_por="codex")
+    md = render_note(_meta(), s, "t")
+    assert "[[Projeto X  fase 1]]" in md
+    assert "[[Projeto [X]" not in md   # sem chars que quebram o wikilink
 
 
 def test_write_note_cria_arquivo_e_move_audio(tmp_path):

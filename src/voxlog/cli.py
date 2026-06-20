@@ -18,19 +18,43 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--local", action="store_true", help="força resumo local (ollama)")
     p.add_argument("--config", default=str(_DEFAULT_CFG))
 
+    ps = sub.add_parser("process-session", help="processa os segmentos de uma sessão")
+    ps.add_argument("session_id")
+    ps.add_argument("--staging", default=str(Path("~/Gravacoes/staging").expanduser()))
+    ps.add_argument("--tipo", default="reuniao", choices=["nota", "reuniao"])
+    ps.add_argument("--origem", default="manual")
+    ps.add_argument("--local", action="store_true")
+    ps.add_argument("--config", default=str(_DEFAULT_CFG))
+
     args = parser.parse_args(argv)
     cfg = load_config(Path(args.config))
-    try:
-        out = process_audio(Path(args.audio), args.tipo, args.origem, cfg,
-                            force_local=args.local)
-    except Exception as e:
-        print(f"voxlog: erro ao processar '{args.audio}': {e}", file=sys.stderr)
-        return 1
-    if out is None:
-        print("descartado (clipe curto)")
+
+    if args.cmd == "process":
+        try:
+            out = process_audio(Path(args.audio), args.tipo, args.origem, cfg,
+                                force_local=args.local)
+        except Exception as e:
+            print(f"voxlog: erro ao processar '{args.audio}': {e}", file=sys.stderr)
+            return 1
+        if out is None:
+            print("descartado (clipe curto)")
+            return 0
+        print(str(out))
         return 0
-    print(str(out))
-    return 0
+
+    if args.cmd == "process-session":
+        from .session import process_session
+        try:
+            out = process_session(args.staging, args.session_id, args.tipo,
+                                  args.origem, cfg, force_local=args.local)
+        except Exception as e:
+            print(f"voxlog: erro na sessão '{args.session_id}': {e}", file=sys.stderr)
+            return 1
+        if out is None:
+            print("descartado (sessão curta/sem segmentos)")
+            return 0
+        print(str(out))
+        return 0
 
 
 if __name__ == "__main__":

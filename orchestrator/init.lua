@@ -2,8 +2,8 @@
 local REPO   = "/Volumes/SSD/Dropbox/Developments/gravador_audio"
 local RECORD = REPO .. "/recorder/record.sh"
 local VOXLOG = REPO .. "/.venv/bin/voxlog"
-local STAGING = os.getenv("HOME") .. "/Gravacoes/staging"
-local LOG = os.getenv("HOME") .. "/Gravacoes/voxlog.log"
+local STAGING = "/Volumes/SSD/Gravacoes/staging"   -- SSD externo (Mac com pouco disco)
+local LOG = "/Volumes/SSD/Gravacoes/voxlog.log"
 
 local M = { task = nil, current_file = nil, current_tipo = nil, current_origem = nil, auto = false, auto_app = nil, indicator = nil, prompted = false }
 local menubar = hs.menubar.new()

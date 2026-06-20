@@ -13,7 +13,7 @@ class Config:
     vault_path: Path = Path("/Volumes/SSD/Dropbox/obsidian/SecundBrain")
     gravacoes_dir: str = "🎙️ Gravações"
     audios_dir: str = "🎙️ Gravações/_audios"
-    staging_dir: Path = field(default_factory=lambda: Path("~/Gravacoes/staging").expanduser())
+    staging_dir: Path = field(default_factory=lambda: Path("/Volumes/SSD/Gravacoes/staging"))
     whisper_model: str = "medium"
     whisper_language: str | None = None
     whisper_endpoint: str = ""   # URL base do Whisper-GPU remoto (vazio = local)

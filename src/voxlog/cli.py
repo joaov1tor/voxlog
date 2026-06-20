@@ -20,7 +20,7 @@ def main(argv: list[str] | None = None) -> int:
 
     ps = sub.add_parser("process-session", help="processa os segmentos de uma sessão")
     ps.add_argument("session_id")
-    ps.add_argument("--staging", default=str(Path("~/Gravacoes/staging").expanduser()))
+    ps.add_argument("--staging", default="/Volumes/SSD/Gravacoes/staging")
     ps.add_argument("--tipo", default="reuniao", choices=["nota", "reuniao"])
     ps.add_argument("--origem", default="manual")
     ps.add_argument("--local", action="store_true")

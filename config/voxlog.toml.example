@@ -1,7 +1,7 @@
 vault_path = "/Volumes/SSD/Dropbox/obsidian/SecundBrain"
 gravacoes_dir = "🎙️ Gravações"
 audios_dir = "🎙️ Gravações/_audios"
-staging_dir = "~/Gravacoes/staging"
+staging_dir = "/Volumes/SSD/Gravacoes/staging"   # SSD externo (Mac com pouco disco)
 
 whisper_model = "medium"     # usado só no fallback local
 whisper_language = "pt"

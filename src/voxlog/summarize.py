@@ -71,7 +71,9 @@ def _default_runner(cmd: list[str], input_text: str) -> str:
 
 
 def _codex_cmd(cfg: Config) -> list[str]:
-    cmd = ["codex", "exec", "--skip-git-repo-check"]
+    # `-c otel.exporter=none`: desativa o exporter otel (config do usuário estava
+    # quebrada — "missing field headers" — e travava o `codex exec`).
+    cmd = ["codex", "exec", "--skip-git-repo-check", "-c", "otel.exporter=none"]
     if cfg.codex_model:
         cmd += ["-m", cfg.codex_model]
     cmd.append("-")
@@ -86,12 +88,13 @@ def summarize(transcript: str, cfg: Config, force_local: bool = False, runner=No
     run = runner or _default_runner
     prompt = build_prompt(transcript)
 
+    # Sem fallback codex->ollama: o usuário NÃO quer ollama local (trava o Mac
+    # de 16GB). Se o codex falhar, a nota sai só com transcrição ("nenhum").
     backends: list[tuple[str, list[str]]] = []
     if force_local or cfg.summarizer == "ollama":
         backends.append(("ollama", _ollama_cmd(cfg)))
     else:
         backends.append(("codex", _codex_cmd(cfg)))
-        backends.append(("ollama", _ollama_cmd(cfg)))
 
     for name, cmd in backends:
         try:

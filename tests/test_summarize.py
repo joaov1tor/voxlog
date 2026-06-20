@@ -39,19 +39,18 @@ def test_summarize_usa_codex_por_padrao():
     assert calls[0] == "codex"
 
 
-def test_summarize_fallback_para_ollama_quando_codex_falha():
+def test_summarize_codex_falha_nao_cai_no_ollama():
+    # usuário não quer ollama local (trava o Mac): codex falha -> "nenhum"
     cfg = Config(summarizer="codex")
     used = []
 
     def runner(cmd, input_text):
         used.append(cmd[0])
-        if cmd[0] == "codex":
-            raise RuntimeError("offline")
-        return json.dumps(PAYLOAD)
+        raise RuntimeError("offline")
 
     s = summarize("t", cfg, runner=runner)
-    assert used == ["codex", "ollama"]
-    assert s.resumido_por == "ollama"
+    assert used == ["codex"]            # NÃO tenta ollama
+    assert s.resumido_por == "nenhum"
 
 
 def test_force_local_pula_codex():

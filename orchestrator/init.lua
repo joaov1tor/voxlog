@@ -5,7 +5,7 @@ local VOXLOG = REPO .. "/.venv/bin/voxlog"
 local STAGING = os.getenv("HOME") .. "/Gravacoes/staging"
 local LOG = os.getenv("HOME") .. "/Gravacoes/voxlog.log"
 
-local M = { task = nil, current_file = nil, current_tipo = nil, current_origem = nil, auto = false, auto_app = nil, indicator = nil }
+local M = { task = nil, current_file = nil, current_tipo = nil, current_origem = nil, auto = false, auto_app = nil, indicator = nil, prompted = false }
 local menubar = hs.menubar.new()
 
 local function setIcon(recording)
@@ -123,17 +123,59 @@ local function micInUse()
   return dev and dev:inUse()
 end
 
+-- ===== Memória de apps que gravam sem perguntar =====
+local ALWAYS_PATH = os.getenv("HOME") .. "/.config/voxlog/always.json"
+local function loadAlways()
+  return hs.json.read(ALWAYS_PATH) or {}
+end
+local function isAlways(app)
+  for _, a in ipairs(loadAlways()) do if a == app then return true end end
+  return false
+end
+local function addAlwaysApp(app)
+  local list = loadAlways()
+  for _, a in ipairs(list) do if a == app then return end end
+  table.insert(list, app)
+  hs.fs.mkdir(os.getenv("HOME") .. "/.config/voxlog")
+  hs.json.write(list, ALWAYS_PATH, true, true)
+end
+
+-- ===== Popup estilo Notion =====
+local function promptMeeting(app)
+  hs.notify.new(function(notif)
+    local at = notif:activationType()
+    if at == hs.notify.activationTypes.actionButtonClicked then
+      startRecording("reuniao", app); M.auto = true; M.auto_app = app
+    elseif at == hs.notify.activationTypes.additionalActionClicked then
+      addAlwaysApp(app)
+      startRecording("reuniao", app); M.auto = true; M.auto_app = app
+    end
+  end, {
+    title = "voxlog",
+    informativeText = "Reunião detectada (" .. app .. ") — gravar?",
+    hasActionButton = true,
+    actionButtonTitle = "Gravar",
+    additionalActions = { "Sempre neste app" },
+    withdrawAfter = 0,
+  }):send()
+end
+
 M.timer = hs.timer.new(3, function()
   if M.paused or not in_window() then return end
   local target = activeTargetApp()
   if (not M.task) and micInUse() and target then
-    startRecording("reuniao", target)          -- auto-início
-    M.auto = true
-    M.auto_app = target
+    if isAlways(target) then
+      startRecording("reuniao", target); M.auto = true; M.auto_app = target
+    elseif not M.prompted then
+      promptMeeting(target); M.prompted = true   -- pergunta 1x por sessão
+    end
   elseif M.task and M.auto and M.auto_app and (not appRunning(M.auto_app)) then
     stopRecording()                              -- app saiu → fim da reunião
     M.auto = false
     M.auto_app = nil
+    M.prompted = false
+  elseif (not M.task) and (not micInUse()) then
+    M.prompted = false   -- mic livre: pode perguntar de novo na próxima reunião
   end
 end)
 M.timer:start()

@@ -93,6 +93,17 @@ local TARGET_APPS = { "zoom.us", "Microsoft Teams", "com.microsoft.teams2", "Dis
 local IGNORED_APPS = {}            -- ex.: { "Banco" }
 M.paused = false
 
+-- ===== Janela de horário (seg-sex 8-18) =====
+local ACTIVE_DAYS = { [2]=true, [3]=true, [4]=true, [5]=true, [6]=true } -- wday: 1=dom..7=sab
+local ACTIVE_START, ACTIVE_END = 8, 18
+local PRESENCIAL_DAYS = { [3]=true, [5]=true }   -- ter, qui
+local PRESENCIAL_REMINDER_MIN = 60
+
+local function in_window()
+  local t = os.date("*t")
+  return ACTIVE_DAYS[t.wday] and t.hour >= ACTIVE_START and t.hour < ACTIVE_END
+end
+
 local function appRunning(name)
   return hs.application.find(name) ~= nil
 end
@@ -113,7 +124,7 @@ local function micInUse()
 end
 
 M.timer = hs.timer.new(3, function()
-  if M.paused then return end
+  if M.paused or not in_window() then return end
   local target = activeTargetApp()
   if (not M.task) and micInUse() and target then
     startRecording("reuniao", target)          -- auto-início
@@ -126,6 +137,16 @@ M.timer = hs.timer.new(3, function()
   end
 end)
 M.timer:start()
+
+-- ===== Lembrete presencial (Ter/Qui) =====
+M.reminder_timer = hs.timer.new(PRESENCIAL_REMINDER_MIN * 60, function()
+  local t = os.date("*t")
+  if PRESENCIAL_DAYS[t.wday] and in_window() and not M.task then
+    hs.notify.new({title = "voxlog",
+      informativeText = "📍 Dia de TOTVS — grave reuniões presenciais com ⌥⌘R"}):send()
+  end
+end)
+M.reminder_timer:start()
 
 -- itens de menu extras
 menubar:setMenu(function()

@@ -13,8 +13,9 @@ DEVICE_NAME="voxlog-Aggregate"
 
 mkdir -p "$STAGING"
 TS="$(date +%Y%m%d-%H%M%S)"
-OUT="$STAGING/${TS}_${TIPO}.m4a"
-echo "$OUT"
+SEG="${3:-1200}"                       # segundos por segmento (default 20min)
+SESSION="${TS}_${TIPO}"                 # id da sessão (prefixo dos segmentos)
+echo "$SESSION"                          # 1a linha stdout = session id
 
 # Descobre o índice do device de áudio pelo nome
 # `ffmpeg -list_devices` SEMPRE sai com código != 0 (mesmo listando ok); com
@@ -25,12 +26,10 @@ IDX="$(ffmpeg -f avfoundation -list_devices true -i "" 2>&1 \
       a && $0 ~ name {line=$0; gsub(/.*\[/,"",line); gsub(/\].*/,"",line); print line; exit}')" || true
 : "${IDX:?Aggregate device '$DEVICE_NAME' nao encontrado — rode o setup de audio}"
 
-# -i ":IDX" = sem vídeo, só o device de áudio IDX. AAC 192k.
-# -movflags frag_keyframe+empty_moov: MP4 fragmentado → arquivo fica válido
-# mesmo se o ffmpeg for encerrado por SIGTERM (como o Hammerspoon faz ao parar).
+# Grava em segmentos; cada um é MP4 fragmentado (válido mesmo se cortado).
 exec ffmpeg -hide_banner -loglevel warning \
   -f avfoundation -i ":${IDX}" \
   -c:a aac -b:a 192k \
-  -movflags +frag_keyframe+empty_moov+default_base_moof \
-  -frag_duration 1000000 \
-  "$OUT"
+  -f segment -segment_time "$SEG" -reset_timestamps 1 \
+  -segment_format mp4 -movflags +frag_keyframe+empty_moov+default_base_moof \
+  "$STAGING/${SESSION}_%03d.m4a"

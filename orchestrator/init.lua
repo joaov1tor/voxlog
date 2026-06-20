@@ -40,8 +40,10 @@ local function process(file, tipo, origem)
   if not file then return end
   -- roda via login shell (/bin/zsh -lc) p/ herdar o PATH completo do usuário
   -- (whisper/codex/ollama/ffprobe não estão no PATH mínimo do hs.task)
+  -- PATH explícito: o `zsh -lc` do Hammerspoon não carrega o .zshrc (onde fica
+  -- o conda), então o whisper do anaconda não era encontrado. Garante os bins.
   local cmd = string.format(
-    "%s process '%s' --tipo '%s' --origem '%s' >> '%s' 2>&1",
+    "export PATH=\"$HOME/anaconda3/bin:/opt/homebrew/bin:/usr/local/bin:$PATH\"; %s process '%s' --tipo '%s' --origem '%s' >> '%s' 2>&1",
     VOXLOG, file, tipo, origem, LOG)
   hs.task.new("/bin/zsh", function(code, _, _)
     hs.notify.new({title="voxlog",

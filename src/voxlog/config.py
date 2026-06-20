@@ -16,6 +16,7 @@ class Config:
     staging_dir: Path = field(default_factory=lambda: Path("~/Gravacoes/staging").expanduser())
     whisper_model: str = "medium"
     whisper_language: str | None = None
+    whisper_endpoint: str = ""   # URL base do Whisper-GPU remoto (vazio = local)
     summarizer: str = "codex"
     ollama_model: str = "llama3.1:8b"
     codex_model: str | None = None
@@ -33,7 +34,7 @@ def load_config(path: Path | None = None) -> Config:
         cfg.vault_path = _expand(data["vault_path"])
     if "staging_dir" in data:
         cfg.staging_dir = _expand(data["staging_dir"])
-    for key in ("gravacoes_dir", "audios_dir", "whisper_model",
+    for key in ("gravacoes_dir", "audios_dir", "whisper_model", "whisper_endpoint",
                 "summarizer", "ollama_model", "target_apps", "ignored_apps"):
         if key in data:
             setattr(cfg, key, data[key])

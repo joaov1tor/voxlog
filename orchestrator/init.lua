@@ -42,8 +42,9 @@ local function process(file, tipo, origem)
   -- (whisper/codex/ollama/ffprobe não estão no PATH mínimo do hs.task)
   -- PATH explícito: o `zsh -lc` do Hammerspoon não carrega o .zshrc (onde fica
   -- o conda), então o whisper do anaconda não era encontrado. Garante os bins.
+  -- inclui o bin do nvm (codex 0.141 vive lá) resolvido em runtime
   local cmd = string.format(
-    "export PATH=\"$HOME/anaconda3/bin:/opt/homebrew/bin:/usr/local/bin:$PATH\"; %s process '%s' --tipo '%s' --origem '%s' >> '%s' 2>&1",
+    "export PATH=\"$HOME/anaconda3/bin:/opt/homebrew/bin:/usr/local/bin:$(ls -d $HOME/.nvm/versions/node/*/bin 2>/dev/null | tail -1):$PATH\"; %s process '%s' --tipo '%s' --origem '%s' >> '%s' 2>&1",
     VOXLOG, file, tipo, origem, LOG)
   hs.task.new("/bin/zsh", function(code, _, _)
     hs.notify.new({title="voxlog",

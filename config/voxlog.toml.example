@@ -3,8 +3,10 @@ gravacoes_dir = "🎙️ Gravações"
 audios_dir = "🎙️ Gravações/_audios"
 staging_dir = "~/Gravacoes/staging"
 
-whisper_model = "medium"
-whisper_language = ""        # vazio = auto-detect (PT/EN)
+whisper_model = "medium"     # usado só no fallback local
+whisper_language = "pt"
+# Whisper-GPU remoto (faster-whisper large-v3, API OpenAI-compat). Vazio = local.
+whisper_endpoint = "https://avell-ai-server.tail99394e.ts.net:5050"
 
 summarizer = "codex"         # codex | ollama
 ollama_model = "llama3.1:8b"

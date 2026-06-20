@@ -36,16 +36,11 @@ local function hideIndicator()
   if M.indicator then M.indicator:delete(); M.indicator = nil end
 end
 
-local function process(file, tipo, origem)
-  if not file then return end
-  -- roda via login shell (/bin/zsh -lc) p/ herdar o PATH completo do usuário
-  -- (whisper/codex/ollama/ffprobe não estão no PATH mínimo do hs.task)
-  -- PATH explícito: o `zsh -lc` do Hammerspoon não carrega o .zshrc (onde fica
-  -- o conda), então o whisper do anaconda não era encontrado. Garante os bins.
-  -- inclui o bin do nvm (codex 0.141 vive lá) resolvido em runtime
+local function process(session, tipo, origem)
+  if not session then return end
   local cmd = string.format(
-    "export PATH=\"$HOME/anaconda3/bin:/opt/homebrew/bin:/usr/local/bin:$(ls -d $HOME/.nvm/versions/node/*/bin 2>/dev/null | tail -1):$PATH\"; %s process '%s' --tipo '%s' --origem '%s' >> '%s' 2>&1",
-    VOXLOG, file, tipo, origem, LOG)
+    "export PATH=\"$HOME/anaconda3/bin:/opt/homebrew/bin:/usr/local/bin:$(ls -d $HOME/.nvm/versions/node/*/bin 2>/dev/null | tail -1):$PATH\"; %s process-session '%s' --tipo '%s' --origem '%s' --staging '%s' >> '%s' 2>&1",
+    VOXLOG, session, tipo, origem, STAGING, LOG)
   hs.task.new("/bin/zsh", function(code, _, _)
     hs.notify.new({title="voxlog",
       informativeText=(code==0 and "Nota criada ✅" or "Falha — ver ~/Gravacoes/voxlog.log ❌")}):send()

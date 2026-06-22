@@ -76,11 +76,9 @@ local function startRecording(tipo, origem)
   M.mic_free_ticks = 0
   local label = (tipo == "reuniao") and ("reunião (" .. tostring(origem) .. ")") or "nota"
   showIndicator(label)
-  -- alerta on-screen grande e mais longo (não depende de permissão de Notificações)
-  hs.alert.show("🔴 GRAVANDO " .. string.upper(label) .. "\n⌥⌘R para parar",
-                { textSize = 26, radius = 14, strokeWidth = 0,
-                  fillColor = { red = 0.85, green = 0.1, blue = 0.1, alpha = 0.92 },
-                  textColor = { white = 1 } }, 5)
+  -- alerta on-screen no formato simples: grande e CENTRALIZADO por padrão, 5s
+  -- (o estilo customizado quebrava o posicionamento). Não depende de Notificações.
+  hs.alert.show("🔴 GRAVANDO " .. string.upper(label) .. " — ⌥⌘R para parar", 5)
 end
 
 local function toggleNote()

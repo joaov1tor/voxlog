@@ -181,7 +181,10 @@ M.timer = hs.timer.new(3, function()
       M.rec_app = nil; M.auto = false; M.auto_app = nil; M.prompted = false; M.mic_free_ticks = 0
     elseif not micInUse() then
       M.mic_free_ticks = (M.mic_free_ticks or 0) + 1
-      if M.mic_free_ticks >= 20 then             -- ~60s de mic livre → fim da call
+      if M.mic_free_ticks >= 4 then              -- ~12s de mic livre → fim da call
+                                                 -- (Discord/Meet seguram o mic a call toda;
+                                                 --  mic livre = saiu. Buffer curto evita corte
+                                                 --  por flicker breve de device)
         stopRecording()
         M.rec_app = nil; M.auto = false; M.auto_app = nil; M.prompted = false; M.mic_free_ticks = 0
       end

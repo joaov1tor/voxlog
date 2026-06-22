@@ -76,7 +76,11 @@ local function startRecording(tipo, origem)
   M.mic_free_ticks = 0
   local label = (tipo == "reuniao") and ("reunião (" .. tostring(origem) .. ")") or "nota"
   showIndicator(label)
-  hs.alert.show("🔴 voxlog: gravando " .. label, 2)   -- feedback on-screen (não depende de Notificações)
+  -- alerta on-screen grande e mais longo (não depende de permissão de Notificações)
+  hs.alert.show("🔴 GRAVANDO " .. string.upper(label) .. "\n⌥⌘R para parar",
+                { textSize = 26, radius = 14, strokeWidth = 0,
+                  fillColor = { red = 0.85, green = 0.1, blue = 0.1, alpha = 0.92 },
+                  textColor = { white = 1 } }, 5)
 end
 
 local function toggleNote()

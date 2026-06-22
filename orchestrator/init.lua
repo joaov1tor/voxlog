@@ -5,7 +5,7 @@ local VOXLOG = REPO .. "/.venv/bin/voxlog"
 local STAGING = "/Volumes/SSD/Gravacoes/staging"   -- SSD externo (Mac com pouco disco)
 local LOG = "/Volumes/SSD/Gravacoes/voxlog.log"
 
-local M = { task = nil, current_file = nil, current_tipo = nil, current_origem = nil, auto = false, auto_app = nil, indicator = nil, prompted = false }
+local M = { task = nil, current_file = nil, current_tipo = nil, current_origem = nil, auto = false, auto_app = nil, indicator = nil, prompted = false, rec_app = nil, mic_free_ticks = 0 }
 local menubar = hs.menubar.new()
 
 local function setIcon(recording)
@@ -73,8 +73,10 @@ local function startRecording(tipo, origem)
   M.current_file = nil
   M.task:start()
   setIcon(true)
+  M.mic_free_ticks = 0
   local label = (tipo == "reuniao") and ("reunião (" .. tostring(origem) .. ")") or "nota"
   showIndicator(label)
+  hs.alert.show("🔴 voxlog: gravando " .. label, 2)   -- feedback on-screen (não depende de Notificações)
 end
 
 local function toggleNote()
@@ -137,6 +139,8 @@ end
 
 -- ===== Popup estilo Notion =====
 local function promptMeeting(app)
+  -- alerta on-screen (visível mesmo sem permissão de Notificações do Hammerspoon)
+  hs.alert.show("🎙️ voxlog: reunião detectada (" .. app .. ") — ⌥⌘R para gravar", 6)
   hs.notify.new(function(notif)
     local at = notif:activationType()
     if at == hs.notify.activationTypes.actionButtonClicked then
@@ -164,15 +168,47 @@ M.timer = hs.timer.new(3, function()
     elseif not M.prompted then
       promptMeeting(target); M.prompted = true   -- pergunta 1x por sessão
     end
-  elseif M.task and M.auto and M.auto_app and (not appRunning(M.auto_app)) then
-    stopRecording()                              -- app saiu → fim da reunião
-    M.auto = false
-    M.auto_app = nil
-    M.prompted = false
+  elseif M.task then
+    -- captura o app de reunião presente (p/ auto-stop), inclusive em gravação manual
+    if not M.rec_app then M.rec_app = target end
+    if M.rec_app and not appRunning(M.rec_app) then
+      stopRecording()                            -- app de reunião saiu → fim
+      M.rec_app = nil; M.auto = false; M.auto_app = nil; M.prompted = false; M.mic_free_ticks = 0
+    elseif not micInUse() then
+      M.mic_free_ticks = (M.mic_free_ticks or 0) + 1
+      if M.mic_free_ticks >= 20 then             -- ~60s de mic livre → fim da call
+        stopRecording()
+        M.rec_app = nil; M.auto = false; M.auto_app = nil; M.prompted = false; M.mic_free_ticks = 0
+      end
+    else
+      M.mic_free_ticks = 0
+    end
   elseif (not M.task) and (not micInUse()) then
     M.prompted = false   -- mic livre: pode perguntar de novo na próxima reunião
   end
 end)
+
+-- ===== Reconciliação no boot (H1) =====
+-- Em reload/crash, o ffmpeg (record.sh) continua vivo mas M.task se perde →
+-- gravações órfãs e ffmpegs zumbis. No load: mata ffmpeg órfão e processa os
+-- segmentos pendentes do staging (não perde a gravação).
+local function reconcileOnBoot()
+  hs.execute("/usr/bin/pkill -f avfoundation >/dev/null 2>&1")
+  hs.timer.doAfter(2.5, function()                 -- deixa o ffmpeg finalizar os segmentos
+    if not hs.fs.attributes(STAGING) then return end
+    local seen = {}
+    for file in hs.fs.dir(STAGING) do
+      local sid = file:match("^(.+)_%d%d%d%.m4a$")
+      if sid and not seen[sid] then
+        seen[sid] = true
+        local tipo = sid:match("_(%a+)$") or "nota"
+        process(sid, tipo, "recuperado")
+      end
+    end
+  end)
+end
+reconcileOnBoot()
+
 M.timer:start()
 
 -- ===== Lembrete presencial (Ter/Qui) =====

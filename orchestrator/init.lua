@@ -163,11 +163,12 @@ M.timer = hs.timer.new(3, function()
   if M.paused or not in_window() then return end
   local target = activeTargetApp()
   if (not M.task) and micInUse() and target then
-    if isAlways(target) then
-      startRecording("reuniao", target); M.auto = true; M.auto_app = target
-    elseif not M.prompted then
-      promptMeeting(target); M.prompted = true   -- pergunta 1x por sessão
-    end
+    -- AUTO-INICIA ao detectar reunião: mic em uso + app de reunião + janela de
+    -- horário. O "mic em uso" é sinal confiável de call ativa (fica false fora
+    -- de call). Sem perguntar — o usuário pode parar com ⌥⌘R. Clipes curtos
+    -- (falso-positivo) são descartados por min_duration_sec.
+    startRecording("reuniao", target)
+    M.auto = true; M.auto_app = target; M.rec_app = target
   elseif M.task then
     -- captura o app de reunião presente (p/ auto-stop), inclusive em gravação manual
     if not M.rec_app then M.rec_app = target end

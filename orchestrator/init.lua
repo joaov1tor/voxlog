@@ -47,10 +47,34 @@ local function process(session, tipo, origem)
   end, {"-lc", cmd}):start()
 end
 
+-- ===== Roteamento de áudio: garante que o som do sistema entre no gravador =====
+-- O recorder captura o voxlog-Aggregate (mic + loopback BlackHole). Pra capturar
+-- as vozes da reunião, a SAÍDA precisa passar pelo voxlog-MultiOut (que manda o
+-- som pro seu ouvido E pro BlackHole). Se a saída estiver no fone direto, só o
+-- mic é gravado → nota vazia. Trocamos no início e restauramos no fim.
+local function switchToMultiOut()
+  local cur = hs.audiodevice.defaultOutputDevice()
+  if cur and cur:name() ~= "voxlog-MultiOut" then
+    M.prev_output = cur:name()
+    local mo = hs.audiodevice.findDeviceByName("voxlog-MultiOut")
+    if mo then mo:setDefaultOutputDevice(); return true end
+  end
+  return false
+end
+
+local function restoreOutput()
+  if M.prev_output then
+    local d = hs.audiodevice.findDeviceByName(M.prev_output)
+    if d then d:setDefaultOutputDevice() end
+    M.prev_output = nil
+  end
+end
+
 local function stopRecording()
   if not M.task then return end
   M.task:terminate()                 -- SIGTERM → ffmpeg finaliza o arquivo
   M.task = nil
+  restoreOutput()                    -- volta a saída pro dispositivo anterior
   setIcon(false)
   hideIndicator()
   hs.alert.show("⏹ voxlog: gravação encerrada — processando…", 2)
@@ -72,6 +96,10 @@ local function startRecording(tipo, origem)
     {RECORD, tipo, STAGING})
   M.current_file = nil
   M.task:start()
+  -- garante captura do áudio do sistema (vozes da reunião): saída → voxlog-MultiOut
+  if switchToMultiOut() then
+    hs.alert.show("🔊 voxlog: saída → voxlog-MultiOut (captura a reunião)", 2)
+  end
   setIcon(true)
   M.mic_free_ticks = 0
   local label = (tipo == "reuniao") and ("reunião (" .. tostring(origem) .. ")") or "nota"
@@ -194,6 +222,7 @@ M.timer = hs.timer.new(3, function()
   -- stopRecording → limpa o estado e processa os segmentos parados no staging.
   if M.task and not M.task:isRunning() then
     M.task = nil; M.rec_app = nil; M.auto = false; M.auto_app = nil; M.mic_free_ticks = 0
+    restoreOutput()                  -- volta a saída de áudio se trocamos
     setIcon(false); hideIndicator()
     M.recovering = true
     processOrphans()

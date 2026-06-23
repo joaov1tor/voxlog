@@ -122,6 +122,34 @@ local function micInUse()
   return dev and dev:inUse()
 end
 
+-- ===== Recuperação de gravações órfãs (segmentos parados no staging) =====
+local function _ffmpegAlive()
+  local out = hs.execute("/usr/bin/pgrep -f avfoundation 2>/dev/null")
+  return out ~= nil and out:match("%d") ~= nil
+end
+
+local function _stagingHasSegments()
+  if not hs.fs.attributes(STAGING) then return false end
+  for file in hs.fs.dir(STAGING) do
+    if file:match("_%d%d%d%.m4a$") then return true end
+  end
+  return false
+end
+
+-- processa qualquer sessão com segmentos parados no staging (1 nota por sessão)
+local function processOrphans()
+  if not hs.fs.attributes(STAGING) then return end
+  local seen = {}
+  for file in hs.fs.dir(STAGING) do
+    local sid = file:match("^(.+)_%d%d%d%.m4a$")
+    if sid and not seen[sid] then
+      seen[sid] = true
+      local tipo = sid:match("_(%a+)$") or "nota"
+      process(sid, tipo, "recuperado")
+    end
+  end
+end
+
 -- ===== Memória de apps que gravam sem perguntar =====
 local ALWAYS_PATH = os.getenv("HOME") .. "/.config/voxlog/always.json"
 local function loadAlways()
@@ -162,6 +190,28 @@ local function promptMeeting(app)
 end
 
 M.timer = hs.timer.new(3, function()
+  -- auto-recover (A): a gravação morreu sozinha (ffmpeg caiu) sem disparar o
+  -- stopRecording → limpa o estado e processa os segmentos parados no staging.
+  if M.task and not M.task:isRunning() then
+    M.task = nil; M.rec_app = nil; M.auto = false; M.auto_app = nil; M.mic_free_ticks = 0
+    setIcon(false); hideIndicator()
+    M.recovering = true
+    processOrphans()
+    hs.timer.doAfter(600, function() M.recovering = false end)
+    return
+  end
+  -- auto-recover (B): varredura periódica (~60s) por segmentos órfãos no staging
+  -- (sem gravação ativa de verdade). Cobre o caso de órfão sem M.task.
+  M.scan_ticks = (M.scan_ticks or 0) + 1
+  if (not M.task) and (not M.recovering) and M.scan_ticks >= 20 then
+    M.scan_ticks = 0
+    if _stagingHasSegments() and not _ffmpegAlive() then
+      M.recovering = true
+      processOrphans()
+      hs.timer.doAfter(600, function() M.recovering = false end)
+    end
+  end
+
   if M.paused or not in_window() then return end
   local target = activeTargetApp()
   if (not M.task) and micInUse() and target then
@@ -200,18 +250,7 @@ end)
 -- segmentos pendentes do staging (não perde a gravação).
 local function reconcileOnBoot()
   hs.execute("/usr/bin/pkill -f avfoundation >/dev/null 2>&1")
-  hs.timer.doAfter(2.5, function()                 -- deixa o ffmpeg finalizar os segmentos
-    if not hs.fs.attributes(STAGING) then return end
-    local seen = {}
-    for file in hs.fs.dir(STAGING) do
-      local sid = file:match("^(.+)_%d%d%d%.m4a$")
-      if sid and not seen[sid] then
-        seen[sid] = true
-        local tipo = sid:match("_(%a+)$") or "nota"
-        process(sid, tipo, "recuperado")
-      end
-    end
-  end)
+  hs.timer.doAfter(2.5, processOrphans)            -- deixa o ffmpeg finalizar, depois processa
 end
 reconcileOnBoot()
 

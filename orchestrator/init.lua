@@ -251,6 +251,14 @@ M.timer = hs.timer.new(3, function()
     startRecording("reuniao", target)
     M.auto = true; M.auto_app = target; M.rec_app = target
   elseif M.task then
+    -- re-força a saída no voxlog-MultiOut durante a gravação: o Bluetooth (JBL)
+    -- "rouba" a saída de volta pra ele quando conecta → perde a captura do
+    -- sistema. Só age com o JBL presente (fora de fone não briga).
+    if hs.audiodevice.findDeviceByName("JBL Tune 770NC")
+       and hs.audiodevice.defaultOutputDevice():name() ~= "voxlog-MultiOut" then
+      local mo = hs.audiodevice.findDeviceByName("voxlog-MultiOut")
+      if mo then mo:setDefaultOutputDevice() end
+    end
     -- captura o app de reunião presente (p/ auto-stop), inclusive em gravação manual
     if not M.rec_app then M.rec_app = target end
     if M.rec_app and not appRunning(M.rec_app) then

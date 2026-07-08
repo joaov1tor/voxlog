@@ -47,34 +47,14 @@ local function process(session, tipo, origem)
   end, {"-lc", cmd}):start()
 end
 
--- ===== Roteamento de áudio: garante que o som do sistema entre no gravador =====
--- O recorder captura o voxlog-Aggregate (mic + loopback BlackHole). Pra capturar
--- as vozes da reunião, a SAÍDA precisa passar pelo voxlog-MultiOut (que manda o
--- som pro seu ouvido E pro BlackHole). Se a saída estiver no fone direto, só o
--- mic é gravado → nota vazia. Trocamos no início e restauramos no fim.
-local function switchToMultiOut()
-  local cur = hs.audiodevice.defaultOutputDevice()
-  if cur and cur:name() ~= "voxlog-MultiOut" then
-    M.prev_output = cur:name()
-    local mo = hs.audiodevice.findDeviceByName("voxlog-MultiOut")
-    if mo then mo:setDefaultOutputDevice(); return true end
-  end
-  return false
-end
-
-local function restoreOutput()
-  if M.prev_output then
-    local d = hs.audiodevice.findDeviceByName(M.prev_output)
-    if d then d:setDefaultOutputDevice() end
-    M.prev_output = nil
-  end
-end
+-- Captura NATIVA (ScreenCaptureKit): o recorder tapeia o áudio do sistema direto,
+-- sem depender de roteamento de saída. Nada de trocar pra voxlog-MultiOut → a
+-- saída fica no dispositivo real e as teclas de volume voltam a funcionar.
 
 local function stopRecording()
   if not M.task then return end
-  M.task:terminate()                 -- SIGTERM → ffmpeg finaliza o arquivo
+  M.task:terminate()                 -- SIGTERM → recorder fecha stdout → ffmpeg finaliza
   M.task = nil
-  restoreOutput()                    -- volta a saída pro dispositivo anterior
   setIcon(false)
   hideIndicator()
   hs.alert.show("⏹ voxlog: gravação encerrada — processando…", 2)
@@ -96,10 +76,6 @@ local function startRecording(tipo, origem)
     {RECORD, tipo, STAGING})
   M.current_file = nil
   M.task:start()
-  -- garante captura do áudio do sistema (vozes da reunião): saída → voxlog-MultiOut
-  if switchToMultiOut() then
-    hs.alert.show("🔊 voxlog: saída → voxlog-MultiOut (captura a reunião)", 2)
-  end
   setIcon(true)
   M.mic_free_ticks = 0
   local label = (tipo == "reuniao") and ("reunião (" .. tostring(origem) .. ")") or "nota"
@@ -152,7 +128,7 @@ end
 
 -- ===== Recuperação de gravações órfãs (segmentos parados no staging) =====
 local function _ffmpegAlive()
-  local out = hs.execute("/usr/bin/pgrep -f avfoundation 2>/dev/null")
+  local out = hs.execute("/usr/bin/pgrep -f voxlog-rec 2>/dev/null")
   return out ~= nil and out:match("%d") ~= nil
 end
 
@@ -195,26 +171,37 @@ local function addAlwaysApp(app)
   hs.json.write(list, ALWAYS_PATH, true, true)
 end
 
--- ===== Popup estilo Notion =====
-local function promptMeeting(app)
-  -- alerta on-screen (visível mesmo sem permissão de Notificações do Hammerspoon)
-  hs.alert.show("🎙️ voxlog: reunião detectada (" .. app .. ") — ⌥⌘R para gravar", 6)
-  hs.notify.new(function(notif)
-    local at = notif:activationType()
-    if at == hs.notify.activationTypes.actionButtonClicked then
-      startRecording("reuniao", app); M.auto = true; M.auto_app = app
-    elseif at == hs.notify.activationTypes.additionalActionClicked then
-      addAlwaysApp(app)
-      startRecording("reuniao", app); M.auto = true; M.auto_app = app
-    end
-  end, {
-    title = "voxlog",
-    informativeText = "Reunião detectada (" .. app .. ") — gravar?",
-    hasActionButton = true,
-    actionButtonTitle = "Gravar",
-    additionalActions = { "Sempre neste app" },
-    withdrawAfter = 0,
-  }):send()
+-- ===== Banner de detecção (persistente, clicável) =====
+-- Notificação do macOS não aparece neste Mac → usamos um banner hs.canvas que
+-- FICA na tela até você gravar (clique ou ⌥⌘R) ou a reunião acabar (mic livre).
+-- Não some sozinho, não depende de permissão de Notificações.
+local function hideDetectBanner()
+  if M.detectBanner then M.detectBanner:delete(); M.detectBanner = nil end
+  M.detectApp = nil
+end
+
+local function showDetectBanner(app)
+  if M.detectBanner and M.detectApp == app then return end   -- já mostrando p/ esse app
+  hideDetectBanner()
+  M.detectApp = app
+  local f = hs.screen.mainScreen():frame()
+  local w, h = 330, 46
+  M.detectBanner = hs.canvas.new({ x = f.x + f.w - w - 18, y = f.y + 70, w = w, h = h })
+  M.detectBanner:appendElements(
+    { type = "rectangle", action = "fill",
+      roundedRectRadii = { xRadius = 10, yRadius = 10 },
+      fillColor = { red = 0.11, green = 0.36, blue = 0.92, alpha = 0.94 } },
+    { type = "text", text = "🎙️ Reunião (" .. app .. ") — clique ou ⌥⌘R p/ gravar",
+      frame = { x = 12, y = 12, w = w - 20, h = 24 },
+      textColor = { white = 1 }, textSize = 13 })
+  M.detectBanner:level(hs.canvas.windowLevels.overlay)
+  M.detectBanner:clickActivating(false)
+  M.detectBanner:canvasMouseEvents(true, false, false, false)
+  M.detectBanner:mouseCallback(function()
+    hideDetectBanner()
+    startRecording("reuniao", app); M.auto = true; M.auto_app = app; M.rec_app = app
+  end)
+  M.detectBanner:show()
 end
 
 M.timer = hs.timer.new(3, function()
@@ -222,7 +209,6 @@ M.timer = hs.timer.new(3, function()
   -- stopRecording → limpa o estado e processa os segmentos parados no staging.
   if M.task and not M.task:isRunning() then
     M.task = nil; M.rec_app = nil; M.auto = false; M.auto_app = nil; M.mic_free_ticks = 0
-    restoreOutput()                  -- volta a saída de áudio se trocamos
     setIcon(false); hideIndicator()
     M.recovering = true
     processOrphans()
@@ -241,29 +227,27 @@ M.timer = hs.timer.new(3, function()
     end
   end
 
-  if M.paused or not in_window() then return end
+  if M.paused or not in_window() then hideDetectBanner(); return end
   local target = activeTargetApp()
   if (not M.task) and micInUse() and target then
-    -- AUTO-INICIA ao detectar reunião: mic em uso + app de reunião + janela de
-    -- horário. O "mic em uso" é sinal confiável de call ativa (fica false fora
-    -- de call). Sem perguntar — o usuário pode parar com ⌥⌘R. Clipes curtos
-    -- (falso-positivo) são descartados por min_duration_sec.
-    startRecording("reuniao", target)
-    M.auto = true; M.auto_app = target; M.rec_app = target
-  elseif M.task then
-    -- re-força a saída no voxlog-MultiOut durante a gravação: o Bluetooth (JBL)
-    -- "rouba" a saída de volta pra ele quando conecta → perde a captura do
-    -- sistema. Só age com o JBL presente (fora de fone não briga).
-    if hs.audiodevice.findDeviceByName("JBL Tune 770NC")
-       and hs.audiodevice.defaultOutputDevice():name() ~= "voxlog-MultiOut" then
-      local mo = hs.audiodevice.findDeviceByName("voxlog-MultiOut")
-      if mo then mo:setDefaultOutputDevice() end
+    -- detecta reunião (mic em uso + app monitorado + janela). NÃO grava sozinho
+    -- (música/WhatsApp no navegador geram lixo): mostra BANNER persistente até
+    -- você gravar (clique/⌥⌘R) ou a reunião acabar. Apps em always.json gravam direto.
+    if isAlways(target) then
+      hideDetectBanner()
+      startRecording("reuniao", target)
+      M.auto = true; M.auto_app = target; M.rec_app = target
+    else
+      showDetectBanner(target)
     end
+  elseif M.task then
+    hideDetectBanner()                          -- gravando → some o banner de detecção
+    -- captura NATIVA independe da saída de áudio — nada de re-forçar dispositivo.
     -- captura o app de reunião presente (p/ auto-stop), inclusive em gravação manual
     if not M.rec_app then M.rec_app = target end
     if M.rec_app and not appRunning(M.rec_app) then
       stopRecording()                            -- app de reunião saiu → fim
-      M.rec_app = nil; M.auto = false; M.auto_app = nil; M.prompted = false; M.mic_free_ticks = 0
+      M.rec_app = nil; M.auto = false; M.auto_app = nil; M.mic_free_ticks = 0
     elseif not micInUse() then
       M.mic_free_ticks = (M.mic_free_ticks or 0) + 1
       if M.mic_free_ticks >= 4 then              -- ~12s de mic livre → fim da call
@@ -271,13 +255,13 @@ M.timer = hs.timer.new(3, function()
                                                  --  mic livre = saiu. Buffer curto evita corte
                                                  --  por flicker breve de device)
         stopRecording()
-        M.rec_app = nil; M.auto = false; M.auto_app = nil; M.prompted = false; M.mic_free_ticks = 0
+        M.rec_app = nil; M.auto = false; M.auto_app = nil; M.mic_free_ticks = 0
       end
     else
       M.mic_free_ticks = 0
     end
   elseif (not M.task) and (not micInUse()) then
-    M.prompted = false   -- mic livre: pode perguntar de novo na próxima reunião
+    hideDetectBanner()   -- mic livre (fim da reunião/áudio) → some o banner
   end
 end)
 
@@ -286,7 +270,7 @@ end)
 -- gravações órfãs e ffmpegs zumbis. No load: mata ffmpeg órfão e processa os
 -- segmentos pendentes do staging (não perde a gravação).
 local function reconcileOnBoot()
-  hs.execute("/usr/bin/pkill -f avfoundation >/dev/null 2>&1")
+  hs.execute("/usr/bin/pkill -TERM -f voxlog-rec >/dev/null 2>&1")   -- recorder órfão → SIGTERM (ffmpeg finaliza)
   hs.timer.doAfter(2.5, processOrphans)            -- deixa o ffmpeg finalizar, depois processa
 end
 reconcileOnBoot()

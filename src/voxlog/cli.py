@@ -26,6 +26,11 @@ def main(argv: list[str] | None = None) -> int:
     ps.add_argument("--local", action="store_true")
     ps.add_argument("--config", default=str(_DEFAULT_CFG))
 
+    pvb = sub.add_parser("voice-backfill", help="re-diariza reuniões passadas")
+    pvb.add_argument("--config", default=str(_DEFAULT_CFG))
+    pvs = sub.add_parser("voice-status", help="status do perfil de voz/diarização")
+    pvs.add_argument("--config", default=str(_DEFAULT_CFG))
+
     args = parser.parse_args(argv)
     cfg = load_config(Path(args.config))
 
@@ -54,6 +59,19 @@ def main(argv: list[str] | None = None) -> int:
             print("descartado (sessão curta/sem segmentos)")
             return 0
         print(str(out))
+        return 0
+
+    if args.cmd == "voice-backfill":
+        from . import voice_backfill
+        notas = voice_backfill.backfill(cfg)
+        print(f"{len(notas)} notas re-diarizadas")
+        for n in notas:
+            print(str(n))
+        return 0
+
+    if args.cmd == "voice-status":
+        print(f"voice_enabled: {cfg.voice_enabled}")
+        print(f"diarize_endpoint: {cfg.voice_diarize_endpoint}")
         return 0
 
     return 1

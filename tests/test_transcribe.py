@@ -47,15 +47,31 @@ def test_transcribe_remoto_usa_endpoint(tmp_path):
     assert any(c.startswith("file=@") for c in captured["cmd"])
 
 
-def test_transcribe_remoto_falha_cai_no_local(tmp_path):
-    audio = tmp_path / "fala.m4a"; audio.write_bytes(b"X")
+def test_transcribe_remoto_falha_cai_no_openrouter(tmp_path, monkeypatch):
+    # avell :5050 falha -> fallback NUVEM (OpenRouter), NÃO local
+    audio = tmp_path / "fala.m4a"; audio.write_bytes(b"abc")
     cfg = Config(whisper_endpoint="https://gpu:5050")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-x")
 
     def fake_curl(cmd):
-        raise RuntimeError("servidor offline")
+        if "openrouter" in " ".join(cmd):
+            return '{"text": "transcrito na nuvem"}'
+        raise RuntimeError("avell offline")
+
+    assert transcribe(audio, cfg, curl=fake_curl) == "transcrito na nuvem"
+
+
+def test_transcribe_nunca_roda_local_com_endpoint(tmp_path, monkeypatch):
+    # endpoint configurado: remoto E openrouter falham -> "" (NUNCA whisper local CPU)
+    audio = tmp_path / "fala.m4a"; audio.write_bytes(b"X")
+    cfg = Config(whisper_endpoint="https://gpu:5050")
+    monkeypatch.setenv("HOME", str(tmp_path)); monkeypatch.setenv("OPENROUTER_API_KEY", "k")
+
+    def fake_curl(cmd):
+        raise RuntimeError("tudo offline")
 
     def fake_runner(cmd, out_dir):
-        (Path(out_dir) / "fala.txt").write_text("fallback local")
+        (Path(out_dir) / "fala.txt").write_text("LOCAL NÃO DEVE RODAR")
 
-    txt = transcribe(audio, cfg, runner=fake_runner, curl=fake_curl)
-    assert txt == "fallback local"
+    assert transcribe(audio, cfg, runner=fake_runner, curl=fake_curl) == ""

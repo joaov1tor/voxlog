@@ -1,0 +1,12 @@
+[Unit]
+Description=voxlog — serviço de diarização (WhisperX :5051)
+After=network-online.target
+
+[Service]
+Environment=HF_TOKEN=COLOQUE_SEU_TOKEN_HF
+WorkingDirectory=/home/jv/products/whisperx-service
+ExecStart=/home/jv/products/whisperx-service/.venv/bin/python server.py
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

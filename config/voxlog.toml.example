@@ -30,3 +30,20 @@ min_duration_sec = 5.0
 # Apps cuja chamada dispara o popup de gravação
 target_apps = ["zoom.us", "Microsoft Teams", "com.microsoft.teams2", "Discord", "Google Chrome", "Safari", "Arc"]
 ignored_apps = []
+
+# ===== Diarização (separar falantes em reuniões) =====
+# provider: "elevenlabs" (STT dedicado, robusto, recomendado) | "whisperx" (serviço :5051, pesado na GPU)
+# A chave do ElevenLabs vai em ~/.config/voxlog/elevenlabs.env (ELEVENLABS_API_KEY=...), NUNCA aqui.
+elevenlabs_model = "scribe_v1"
+[voice]
+enabled = true
+provider = "elevenlabs"
+max_sec = 7200            # acima disso, pula diarização
+# Pré-trim de silêncio (obrigatório): dead air faz Whisper/Gemini loopar e o ElevenLabs alucinar.
+# Remover mata os dois problemas e corta ~metade do custo. Comprime a linha do tempo (timestamps = tempo de fala).
+trim_silence = true
+silence_db = "-35dB"      # limiar do que conta como silêncio
+silence_min_sec = 2.0     # só remove silêncios >= isto
+silence_keep = 0.3        # padding mantido em cada corte
+# provider "whisperx" (legado): endpoint do serviço :5051
+# diarize_endpoint = "http://localhost:5051"

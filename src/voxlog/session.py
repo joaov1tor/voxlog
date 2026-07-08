@@ -1,10 +1,14 @@
 from __future__ import annotations
 import shutil
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from .config import Config
 from .transcribe import transcribe as _do_transcribe
+from .transcribe import diarize as _do_diarize
 from .summarize import summarize_segments as _do_summarize_segments
+from .summarize import summarize as _do_summarize
+from .audioutil import combine_segments as _do_combine
 from .process import file_sha1, audio_duration_sec
 from .vault import NoteMeta, write_note
 
@@ -17,7 +21,8 @@ def _session_start(session_id: str) -> datetime:
 
 def process_session(staging_dir, session_id, tipo, origem, cfg: Config,
                     force_local: bool = False, *, _transcribe=None,
-                    _summarize=None, _duration=None) -> Path | None:
+                    _summarize=None, _duration=None, _diarize=None,
+                    _combine=None) -> Path | None:
     staging = Path(staging_dir)
     segs = sorted(staging.glob(f"{session_id}_*.m4a"))
     if not segs:
@@ -29,10 +34,26 @@ def process_session(staging_dir, session_id, tipo, origem, cfg: Config,
             s.unlink(missing_ok=True)
         return None
 
-    tr = _transcribe or _do_transcribe
-    transcripts = [tr(s, cfg) for s in segs]
-    full = "\n".join(transcripts)
-    summary = (_summarize or _do_summarize_segments)(transcripts, cfg, force_local)
+    # diarização roda na CPU do avell (sem OOM). voice_max_sec (7200) só limita
+    # reuniões absurdamente longas. Acima do limite, vai direto pra transcrição normal.
+    if tipo == "reuniao" and cfg.voice_enabled and total <= cfg.voice_max_sec:
+        combine = _combine or _do_combine
+        diarize = _diarize or _do_diarize
+        summarize = _summarize or _do_summarize
+        with tempfile.TemporaryDirectory() as td:
+            full_audio = combine(segs, Path(td) / f"{session_id}.m4a")
+            try:
+                full = diarize(full_audio, cfg)
+            except Exception:
+                # fallback: transcrição normal por segmento, sem diarização
+                tr = _transcribe or _do_transcribe
+                full = "\n".join(tr(s, cfg) for s in segs)
+        summary = summarize(full, cfg, force_local)
+    else:
+        tr = _transcribe or _do_transcribe
+        transcripts = [tr(s, cfg) for s in segs]
+        full = "\n".join(transcripts)
+        summary = (_summarize or _do_summarize_segments)(transcripts, cfg, force_local)
 
     start = _session_start(session_id)
     audio_filename = f"{start.strftime('%Y-%m-%d %H%M')} {tipo}.m4a"

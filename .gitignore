@@ -27,5 +27,9 @@ dist/
 # Node (caso o Hammerspoon/glue use)
 node_modules/
 
+# Build artifact do recorder nativo — gerado por recorder/build.sh
+/recorder/voxlog-rec.app/
+/recorder/voxlog-rec.bin
+
 # macOS
 .DS_Store

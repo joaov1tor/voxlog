@@ -1,7 +1,10 @@
 from __future__ import annotations
 import json
+import os
 import subprocess
+import urllib.request
 from dataclasses import dataclass, field
+from pathlib import Path
 from .config import Config
 
 _PROMPT = """Você é um assistente que resume reuniões e notas de voz em português.
@@ -61,7 +64,44 @@ def parse_summary_json(raw: str, resumido_por: str) -> Summary:
     )
 
 
+def _openrouter_key() -> str:
+    """Chave do OpenRouter. O arquivo dedicado ~/.config/voxlog/openrouter.env
+    tem PRIORIDADE sobre a env do shell (que pode estar stale/inválida em outra
+    máquina). Fallback p/ a env. NUNCA hardcode/commit a chave."""
+    p = Path.home() / ".config" / "voxlog" / "openrouter.env"
+    if p.exists():
+        for line in p.read_text().splitlines():
+            line = line.strip()
+            if line.startswith("OPENROUTER_API_KEY="):
+                v = line.split("=", 1)[1].strip().strip('"').strip("'")
+                if v:
+                    return v
+    return os.environ.get("OPENROUTER_API_KEY", "")
+
+
+def _openrouter_http(model: str, base_url: str, prompt: str, timeout: int = 180) -> str:
+    """Chama o OpenRouter (OpenAI-compat) — fallback DeepSeek quando o codex
+    estoura cota."""
+    key = _openrouter_key()
+    if not key:
+        raise RuntimeError("OPENROUTER_API_KEY ausente (env ou ~/.config/voxlog/openrouter.env)")
+    body = json.dumps({
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        base_url.rstrip("/") + "/chat/completions",
+        data=body,
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        data = json.load(resp)
+    return str(data["choices"][0]["message"]["content"])
+
+
 def _default_runner(cmd: list[str], input_text: str) -> str:
+    if cmd[0] == "openrouter":               # ["openrouter", model, base_url]
+        return _openrouter_http(cmd[1], cmd[2], input_text)
     proc = subprocess.run(
         cmd, input=input_text, capture_output=True, text=True, timeout=180
     )
@@ -84,17 +124,40 @@ def _ollama_cmd(cfg: Config) -> list[str]:
     return ["ollama", "run", cfg.ollama_model]
 
 
+def _claude_cmd(cfg: Config) -> list[str]:
+    # fallback via claude CLI headless (usa a assinatura; sem ANTHROPIC_API_KEY).
+    cmd = ["claude", "-p"]
+    if cfg.claude_model:
+        cmd += ["--model", cfg.claude_model]
+    return cmd
+
+
+def _openrouter_cmd(cfg: Config) -> list[str]:
+    # "cmd" sentinela: o runner detecta cmd[0]=="openrouter" e faz HTTP (não subprocess).
+    return ["openrouter", cfg.openrouter_model, cfg.openrouter_base_url]
+
+
+def _backends(cfg: Config, force_local: bool) -> list[tuple[str, list[str]]]:
+    """Primário + fallback. Se o codex falhar (ex.: cota estourada), tenta o
+    fallback configurado. Sem fallback p/ ollama por padrão (o usuário não quer
+    ollama no Mac). 'deepseek'/'openrouter' → DeepSeek V4 Flash via OpenRouter."""
+    if force_local or cfg.summarizer == "ollama":
+        return [("ollama", _ollama_cmd(cfg))]
+    backends = [("codex", _codex_cmd(cfg))]
+    fb = cfg.summarizer_fallback
+    if fb in ("deepseek", "openrouter"):
+        backends.append(("deepseek", _openrouter_cmd(cfg)))
+    elif fb == "claude":
+        backends.append(("claude", _claude_cmd(cfg)))
+    elif fb == "ollama":
+        backends.append(("ollama", _ollama_cmd(cfg)))
+    return backends
+
+
 def summarize(transcript: str, cfg: Config, force_local: bool = False, runner=None) -> Summary:
     run = runner or _default_runner
     prompt = build_prompt(transcript)
-
-    # Sem fallback codex->ollama: o usuário NÃO quer ollama local (trava o Mac
-    # de 16GB). Se o codex falhar, a nota sai só com transcrição ("nenhum").
-    backends: list[tuple[str, list[str]]] = []
-    if force_local or cfg.summarizer == "ollama":
-        backends.append(("ollama", _ollama_cmd(cfg)))
-    else:
-        backends.append(("codex", _codex_cmd(cfg)))
+    backends = _backends(cfg, force_local)
 
     for name, cmd in backends:
         try:
@@ -129,8 +192,7 @@ def summarize_segments(transcripts, cfg, force_local: bool = False, runner=None)
         s = summarize(t, cfg, force_local=force_local, runner=runner)
         parciais.append(s.resumo or t[:500])
     run = runner or _default_runner
-    backends = ([("ollama", _ollama_cmd(cfg))] if (force_local or cfg.summarizer == "ollama")
-                else [("codex", _codex_cmd(cfg))])
+    backends = _backends(cfg, force_local)
     prompt = _COMBINE_PROMPT.format(parciais="\n\n".join(parciais))
     for name, cmd in backends:
         try:

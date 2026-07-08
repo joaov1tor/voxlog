@@ -26,3 +26,21 @@ def test_loads_and_overrides(tmp_path):
     assert cfg.min_duration_sec == 3.0
     assert cfg.ignored_apps == ["Banco"]
     assert str(cfg.vault_path).endswith("/V")  # ~ expandido
+
+
+def test_load_config_secao_voice(tmp_path):
+    cfg_file = tmp_path / "voxlog.toml"
+    cfg_file.write_text(
+        'vault_path = "/tmp/v"\n\n[voice]\nenabled = true\n'
+        'diarize_endpoint = "http://localhost:5051"\n')
+    cfg = load_config(cfg_file)
+    assert cfg.voice_enabled is True
+    assert cfg.voice_diarize_endpoint == "http://localhost:5051"
+
+
+def test_load_config_voice_defaults(tmp_path):
+    cfg_file = tmp_path / "voxlog.toml"
+    cfg_file.write_text('vault_path = "/tmp/v"\n')
+    cfg = load_config(cfg_file)
+    assert cfg.voice_enabled is False
+    assert cfg.voice_diarize_endpoint == "http://localhost:5051"

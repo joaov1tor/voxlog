@@ -3,6 +3,24 @@ import pytest
 from voxlog.config import Config
 from voxlog.summarize import Summary, parse_summary_json, summarize, build_prompt, summarize_segments
 
+
+def test_summarize_fallback_codex_para_claude():
+    # codex falha (ex.: cota) -> cai para o claude CLI
+    cfg = Config(summarizer="codex", summarizer_fallback="claude")
+    chamados = []
+
+    def runner(cmd, prompt):
+        chamados.append(cmd[0])
+        if cmd[0] == "codex":
+            raise RuntimeError("rate limit")
+        assert cmd[0] == "claude"
+        return '{"resumo":"r","assunto":"A","tags":[],"participantes":[],"acoes":[]}'
+
+    s = summarize("transcricao", cfg, runner=runner)
+    assert s.resumido_por == "claude"
+    assert s.assunto == "A"
+    assert chamados == ["codex", "claude"]
+
 PAYLOAD = {
     "resumo": "Discutiu-se o sprint.",
     "assunto": "Planejamento Sprint 12",
@@ -39,9 +57,9 @@ def test_summarize_usa_codex_por_padrao():
     assert calls[0] == "codex"
 
 
-def test_summarize_codex_falha_nao_cai_no_ollama():
-    # usuário não quer ollama local (trava o Mac): codex falha -> "nenhum"
-    cfg = Config(summarizer="codex")
+def test_summarize_codex_falha_cai_no_claude_nao_ollama():
+    # codex falha -> tenta claude (fallback), nunca ollama; se ambos falham -> "nenhum"
+    cfg = Config(summarizer="codex")   # summarizer_fallback="claude" por padrão
     used = []
 
     def runner(cmd, input_text):
@@ -49,8 +67,8 @@ def test_summarize_codex_falha_nao_cai_no_ollama():
         raise RuntimeError("offline")
 
     s = summarize("t", cfg, runner=runner)
-    assert used == ["codex"]            # NÃO tenta ollama
-    assert s.resumido_por == "nenhum"
+    assert used == ["codex", "claude"]   # tenta claude, NÃO ollama
+    assert s.resumido_por == "nenhum"    # ambos falharam
 
 
 def test_force_local_pula_codex():
@@ -98,6 +116,64 @@ def test_summarize_segments_um_so_delega():
     s = summarize_segments(["transcricao unica"], cfg, runner=runner)
     assert s.assunto == "Planejamento Sprint 12"
     assert s.resumido_por == "codex"
+
+
+def test_openrouter_cmd_formato():
+    from voxlog.summarize import _openrouter_cmd
+    cmd = _openrouter_cmd(Config())
+    assert cmd[0] == "openrouter"                          # sentinela p/ o runner HTTP
+    assert cmd[1] == "deepseek/deepseek-v4-flash"
+    assert cmd[2] == "https://openrouter.ai/api/v1"
+
+
+def test_codex_falha_cai_no_deepseek():
+    # cota do codex acaba -> DeepseekV4 Flash via OpenRouter
+    cfg = Config(summarizer="codex", summarizer_fallback="deepseek")
+    used = []
+
+    def runner(cmd, input_text):
+        used.append(cmd[0])
+        if cmd[0] == "codex":
+            raise RuntimeError("quota exceeded")
+        assert cmd[0] == "openrouter"
+        return json.dumps(PAYLOAD)
+
+    s = summarize("t", cfg, runner=runner)
+    assert used == ["codex", "openrouter"]   # NÃO tenta claude
+    assert s.resumido_por == "deepseek"
+    assert s.assunto == "Planejamento Sprint 12"
+
+
+def test_openrouter_http_usa_chave_e_endpoint(monkeypatch, tmp_path):
+    import voxlog.summarize as S
+    monkeypatch.setenv("HOME", str(tmp_path))   # sem arquivo dedicado → usa a env
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-teste")
+    cap = {}
+
+    class FakeResp:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self):
+            return json.dumps({"choices": [{"message": {"content": json.dumps(PAYLOAD)}}]}).encode()
+
+    def fake_urlopen(req, timeout=180):
+        cap["url"] = req.full_url
+        cap["auth"] = req.headers.get("Authorization")
+        return FakeResp()
+
+    monkeypatch.setattr(S.urllib.request, "urlopen", fake_urlopen)
+    out = S._openrouter_http("deepseek/deepseek-v4-flash", "https://openrouter.ai/api/v1", "prompt")
+    assert json.loads(out)["assunto"] == "Planejamento Sprint 12"
+    assert cap["url"].endswith("/chat/completions")
+    assert cap["auth"] == "Bearer sk-or-teste"
+
+
+def test_openrouter_http_sem_chave_levanta(monkeypatch, tmp_path):
+    import voxlog.summarize as S
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))   # sem env e sem arquivo de chave
+    with pytest.raises(RuntimeError):
+        S._openrouter_http("m", "https://x/api/v1", "p")
 
 
 def test_summarize_segments_combina_varios():

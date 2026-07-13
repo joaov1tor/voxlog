@@ -42,6 +42,21 @@ def pistas_presentes(texto: str, pistas: dict[str, list[str]]) -> dict[str, list
     return achadas
 
 
+def entidade_por_pista(pistas_achadas: dict[str, list[str]]) -> str:
+    """Entidade deduzida das pistas, quando elas são inequívocas.
+
+    O LLM é instável: no mesmo texto ele às vezes devolve a entidade e às vezes deixa
+    vazio. Quando as pistas apontam para UMA entidade só, isso é determinístico e não
+    precisa passar pelo modelo — usamos como rede de segurança.
+
+    Empate (pistas de duas entidades) devolve "": aí é ambíguo de verdade, e o palpite
+    do modelo vale mais que o nosso.
+    """
+    if len(pistas_achadas) == 1:
+        return next(iter(pistas_achadas))
+    return ""
+
+
 def taxonomy_block(clientes: list[str], produtos: list[str],
                    pistas_achadas: dict[str, list[str]] | None = None) -> str:
     """Trecho do prompt que ensina o vocabulário do usuário. Vazio se ele não configurou."""

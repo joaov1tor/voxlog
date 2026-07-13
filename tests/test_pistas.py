@@ -39,3 +39,19 @@ def test_prompt_sem_pistas_nao_traz_a_secao():
     cfg.clientes = ["Lívio"]
     cfg.pistas = PISTAS
     assert "PISTAS ENCONTRADAS" not in build_prompt("assunto totalmente distinto", cfg)
+
+
+def test_entidade_por_pista_quando_inequivoca():
+    # rede de segurança: o LLM deixou entidade vazia, mas a pista é de uma só entidade
+    achadas = {"Lívio": ["check-in", "APK"]}
+    assert taxonomy.entidade_por_pista(achadas) == "Lívio"
+
+
+def test_entidade_por_pista_empate_devolve_vazio():
+    # duas entidades com pista = ambíguo de verdade; não chutamos
+    achadas = {"Lívio": ["check-in"], "Agente de Pagamento": ["CNAB"]}
+    assert taxonomy.entidade_por_pista(achadas) == ""
+
+
+def test_entidade_por_pista_sem_pista():
+    assert taxonomy.entidade_por_pista({}) == ""

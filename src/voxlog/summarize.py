@@ -183,10 +183,16 @@ def summarize(transcript: str, cfg: Config, force_local: bool = False, runner=No
     prompt = build_prompt(transcript, cfg)
     backends = _backends(cfg, force_local)
 
+    achadas = taxonomy.pistas_presentes(transcript, cfg.pistas)
     for name, cmd in backends:
         try:
             raw = run(cmd, prompt)
-            return parse_summary_json(raw, name, cfg)
+            s = parse_summary_json(raw, name, cfg)
+            # o modelo é instável: no mesmo texto ele ora devolve a entidade, ora
+            # deixa vazio. Se as pistas apontam para uma só, não precisamos dele.
+            if not s.entidade:
+                s.entidade = taxonomy.entidade_por_pista(achadas)
+            return s
         except Exception:
             continue
     return Summary(resumido_por="nenhum")
@@ -226,9 +232,13 @@ def summarize_segments(transcripts, cfg, force_local: bool = False, runner=None)
             cfg.clientes, cfg.produtos, taxonomy.pistas_presentes(juntos, cfg.pistas)
         ),
     )
+    achadas = taxonomy.pistas_presentes(juntos, cfg.pistas)
     for name, cmd in backends:
         try:
-            return parse_summary_json(run(cmd, prompt), name, cfg)
+            s = parse_summary_json(run(cmd, prompt), name, cfg)
+            if not s.entidade:
+                s.entidade = taxonomy.entidade_por_pista(achadas)
+            return s
         except Exception:
             continue
     return Summary(resumido_por="nenhum")

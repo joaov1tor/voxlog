@@ -45,7 +45,8 @@ class Summary:
 def build_prompt(transcript: str, cfg: Config | None = None) -> str:
     bloco = ""
     if cfg is not None:
-        bloco = taxonomy.taxonomy_block(cfg.clientes, cfg.produtos)
+        achadas = taxonomy.pistas_presentes(transcript, cfg.pistas)
+        bloco = taxonomy.taxonomy_block(cfg.clientes, cfg.produtos, achadas)
     return _PROMPT.format(transcript=transcript, taxonomia=bloco)
 
 
@@ -64,14 +65,17 @@ def _extract_first_json_object(raw: str) -> str:
     raise ValueError("JSON não balanceado na saída")
 
 
-def parse_summary_json(raw: str, resumido_por: str) -> Summary:
+def parse_summary_json(raw: str, resumido_por: str, cfg: Config | None = None) -> Summary:
     data = json.loads(_extract_first_json_object(raw))
+    clientes = cfg.clientes if cfg else []
+    produtos = cfg.produtos if cfg else []
     return Summary(
         resumo=str(data.get("resumo", "")),
         assunto=str(data.get("assunto", "")),
         # natureza fora do enum vira "" — melhor vazio que uma classificação inventada
         natureza=taxonomy.valid_natureza(str(data.get("natureza", ""))),
-        entidade=str(data.get("entidade", "")),
+        # idem para entidade: fora do vocabulário configurado, vira ""
+        entidade=taxonomy.valid_entidade(str(data.get("entidade", "")), clientes, produtos),
         ferramentas=list(data.get("ferramentas", [])),
         tags=list(data.get("tags", [])),
         participantes=list(data.get("participantes", [])),
@@ -182,7 +186,7 @@ def summarize(transcript: str, cfg: Config, force_local: bool = False, runner=No
     for name, cmd in backends:
         try:
             raw = run(cmd, prompt)
-            return parse_summary_json(raw, name)
+            return parse_summary_json(raw, name, cfg)
         except Exception:
             continue
     return Summary(resumido_por="nenhum")
@@ -215,13 +219,16 @@ def summarize_segments(transcripts, cfg, force_local: bool = False, runner=None)
         parciais.append(s.resumo or t[:500])
     run = runner or _default_runner
     backends = _backends(cfg, force_local)
+    juntos = "\n\n".join(parciais)
     prompt = _COMBINE_PROMPT.format(
-        parciais="\n\n".join(parciais),
-        taxonomia=taxonomy.taxonomy_block(cfg.clientes, cfg.produtos),
+        parciais=juntos,
+        taxonomia=taxonomy.taxonomy_block(
+            cfg.clientes, cfg.produtos, taxonomy.pistas_presentes(juntos, cfg.pistas)
+        ),
     )
     for name, cmd in backends:
         try:
-            return parse_summary_json(run(cmd, prompt), name)
+            return parse_summary_json(run(cmd, prompt), name, cfg)
         except Exception:
             continue
     return Summary(resumido_por="nenhum")

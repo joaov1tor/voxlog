@@ -5,6 +5,7 @@ import subprocess
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
+from . import taxonomy
 from .config import Config
 
 _PROMPT = """Você é um assistente que resume reuniões e notas de voz em português.
@@ -12,10 +13,14 @@ Analise a TRANSCRIÇÃO abaixo e responda APENAS com um objeto JSON válido, sem
 com exatamente estas chaves:
 - "resumo": string (3-6 frases)
 - "assunto": string curta (título do tema principal)
+- "natureza": UMA de ["cliente", "produto-interno", "gestao", "comercial", "pessoal"]
+- "entidade": o cliente OU o produto de que a reunião trata ("" se nenhum)
+- "ferramentas": array de tecnologias/ferramentas citadas (kebab-case, vazio se não houver)
 - "tags": array de strings curtas em minúsculas (kebab-case)
 - "participantes": array de nomes citados (vazio se não houver)
+- "decisoes": array de decisões explícitas tomadas (vazio se não houver)
 - "acoes": array de itens de ação/próximos passos (vazio se não houver)
-
+{taxonomia}
 TRANSCRIÇÃO:
 \"\"\"
 {transcript}
@@ -27,14 +32,21 @@ TRANSCRIÇÃO:
 class Summary:
     resumo: str = ""
     assunto: str = ""
+    natureza: str = ""
+    entidade: str = ""
+    ferramentas: list[str] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
     participantes: list[str] = field(default_factory=list)
+    decisoes: list[str] = field(default_factory=list)
     acoes: list[str] = field(default_factory=list)
     resumido_por: str = "nenhum"
 
 
-def build_prompt(transcript: str) -> str:
-    return _PROMPT.format(transcript=transcript)
+def build_prompt(transcript: str, cfg: Config | None = None) -> str:
+    bloco = ""
+    if cfg is not None:
+        bloco = taxonomy.taxonomy_block(cfg.clientes, cfg.produtos)
+    return _PROMPT.format(transcript=transcript, taxonomia=bloco)
 
 
 def _extract_first_json_object(raw: str) -> str:
@@ -57,8 +69,13 @@ def parse_summary_json(raw: str, resumido_por: str) -> Summary:
     return Summary(
         resumo=str(data.get("resumo", "")),
         assunto=str(data.get("assunto", "")),
+        # natureza fora do enum vira "" — melhor vazio que uma classificação inventada
+        natureza=taxonomy.valid_natureza(str(data.get("natureza", ""))),
+        entidade=str(data.get("entidade", "")),
+        ferramentas=list(data.get("ferramentas", [])),
         tags=list(data.get("tags", [])),
         participantes=list(data.get("participantes", [])),
+        decisoes=list(data.get("decisoes", [])),
         acoes=list(data.get("acoes", [])),
         resumido_por=resumido_por,
     )
@@ -156,7 +173,10 @@ def _backends(cfg: Config, force_local: bool) -> list[tuple[str, list[str]]]:
 
 def summarize(transcript: str, cfg: Config, force_local: bool = False, runner=None) -> Summary:
     run = runner or _default_runner
-    prompt = build_prompt(transcript)
+    # corrige o vocabulário ANTES de resumir: o resumo, o assunto e o nome do
+    # arquivo derivam daqui, então errar o nome do cliente aqui contamina tudo.
+    transcript = taxonomy.fix_transcript(transcript, cfg.glossario)
+    prompt = build_prompt(transcript, cfg)
     backends = _backends(cfg, force_local)
 
     for name, cmd in backends:
@@ -170,9 +190,11 @@ def summarize(transcript: str, cfg: Config, force_local: bool = False, runner=No
 
 _COMBINE_PROMPT = """Você recebe vários RESUMOS PARCIAIS de segmentos de uma mesma
 reunião, em ordem. Combine tudo em UM resumo coeso. Responda APENAS com um objeto
-JSON válido com as chaves: "resumo" (string), "assunto" (string curta), "tags"
-(array), "participantes" (array), "acoes" (array consolidada).
-
+JSON válido com as chaves: "resumo" (string), "assunto" (string curta), "natureza"
+(uma de ["cliente", "produto-interno", "gestao", "comercial", "pessoal"]), "entidade"
+(string), "ferramentas" (array), "tags" (array), "participantes" (array), "decisoes"
+(array consolidada), "acoes" (array consolidada).
+{taxonomia}
 RESUMOS PARCIAIS:
 \"\"\"
 {parciais}
@@ -193,7 +215,10 @@ def summarize_segments(transcripts, cfg, force_local: bool = False, runner=None)
         parciais.append(s.resumo or t[:500])
     run = runner or _default_runner
     backends = _backends(cfg, force_local)
-    prompt = _COMBINE_PROMPT.format(parciais="\n\n".join(parciais))
+    prompt = _COMBINE_PROMPT.format(
+        parciais="\n\n".join(parciais),
+        taxonomia=taxonomy.taxonomy_block(cfg.clientes, cfg.produtos),
+    )
     for name, cmd in backends:
         try:
             return parse_summary_json(run(cmd, prompt), name)

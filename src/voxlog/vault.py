@@ -50,10 +50,16 @@ def _link_assunto(assunto: str) -> str:
     return s or "Sem assunto"
 
 
+def _yaml_list(items: list[str]) -> str:
+    return "[" + ", ".join(f'"{i}"' for i in items) + "]"
+
+
 def render_note(meta: NoteMeta, summary: Summary, transcript: str) -> str:
-    tags = "[" + ", ".join(f'"{t}"' for t in summary.tags) + "]"
-    parts = "[" + ", ".join(f'"{p}"' for p in summary.participantes) + "]"
+    tags = _yaml_list(summary.tags)
+    parts = _yaml_list(summary.participantes)
+    ferramentas = _yaml_list(summary.ferramentas)
     acoes = "\n".join(f"- [ ] {a}" for a in summary.acoes) or "- (nenhum)"
+    decisoes = "\n".join(f"- {d}" for d in summary.decisoes) or "- (nenhuma registrada)"
     fm = (
         "---\n"
         f"tipo: {meta.tipo}\n"
@@ -62,6 +68,9 @@ def render_note(meta: NoteMeta, summary: Summary, transcript: str) -> str:
         f"duracao_min: {meta.duracao_min}\n"
         f"origem: {meta.origem}\n"
         f'assunto: "{summary.assunto}"\n'
+        f"natureza: {summary.natureza or '""'}\n"
+        f'entidade: "{summary.entidade}"\n'
+        f"ferramentas: {ferramentas}\n"
         f"tags: {tags}\n"
         f"participantes: {parts}\n"
         f"resumido_por: {summary.resumido_por}\n"
@@ -69,14 +78,17 @@ def render_note(meta: NoteMeta, summary: Summary, transcript: str) -> str:
         f'audio: "[[{meta.audio_filename}]]"\n'
         "---\n\n"
     )
+    # a entidade vira link do grafo: é ela que agrupa "tudo do cliente X"
+    entidade_link = f"Entidade: [[{_link_assunto(summary.entidade)}]]\n" if summary.entidade else ""
     body = (
-        f"Assunto: [[{_link_assunto(summary.assunto)}]]\n\n"  # link p/ agrupar no grafo
+        f"Assunto: [[{_link_assunto(summary.assunto)}]]\n"
+        f"{entidade_link}\n"
         "## 📌 Resumo\n\n"
         f"{summary.resumo or '(sem resumo — reprocessar)'}\n\n"
         "## ✅ Itens de ação\n\n"
         f"{acoes}\n\n"
         "## 🗣️ Tópicos e decisões\n\n"
-        "- \n\n"
+        f"{decisoes}\n\n"
         "## 📝 Transcrição completa\n\n"
         "> [!quote]- Transcrição\n"
         + "\n".join(f"> {line}" for line in transcript.splitlines() or [""])

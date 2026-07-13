@@ -4,6 +4,37 @@ Grava **tudo que você fala** no Mac — notas de voz e reuniões (Zoom, Teams, 
 
 > **Só Mac** (macOS 13+; testado no 15 / Apple Silicon).
 
+## Instalação
+
+Requer **Python 3.11+**. O voxlog não tem dependências de terceiros — instala e roda.
+
+```bash
+# com uv (recomendado)
+uv tool install git+https://github.com/joaov1tor/voxlog
+
+# ou com pipx
+pipx install git+https://github.com/joaov1tor/voxlog
+```
+
+Depois, crie sua configuração:
+
+```bash
+voxlog init
+```
+
+O `init` pergunta onde fica seu vault do Obsidian, o idioma do áudio e qual resumidor usar,
+e grava tudo em `~/.config/voxlog/voxlog.toml`. Nada é escrito fora daí.
+
+### Atualizar
+
+```bash
+voxlog update
+```
+
+O voxlog também avisa sozinho, em uma linha, quando existe versão nova (checagem uma vez
+por dia, em segundo plano). Para silenciar — útil em cron/launchd — defina
+`VOXLOG_NO_UPDATE_CHECK=1`.
+
 ## Como funciona
 
 ```

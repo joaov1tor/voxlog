@@ -1,0 +1,39 @@
+name: release
+
+# Publica uma GitHub Release ao empurrar uma tag vX.Y.Z.
+# É essa release que o `voxlog update` e o aviso de versão nova enxergam.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Confere se a tag bate com a versão do pyproject
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          proj=$(python -c "import tomllib,pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          if [ "$tag" != "$proj" ]; then
+            echo "tag $tag != pyproject $proj — faça bump antes de taguear" >&2
+            exit 1
+          fi
+
+      - name: Build
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/*

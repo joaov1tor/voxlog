@@ -3,6 +3,8 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import paths
+
 
 def _expand(p: str) -> Path:
     return Path(p).expanduser()
@@ -10,10 +12,10 @@ def _expand(p: str) -> Path:
 
 @dataclass
 class Config:
-    vault_path: Path = Path("/Volumes/SSD/Dropbox/obsidian/SecundBrain")
+    vault_path: Path = field(default_factory=paths.default_vault_path)
     gravacoes_dir: str = "🎙️ Gravações"
     audios_dir: str = "🎙️ Gravações/_audios"
-    staging_dir: Path = field(default_factory=lambda: Path("/Volumes/SSD/Gravacoes/staging"))
+    staging_dir: Path = field(default_factory=paths.default_staging_dir)
     whisper_model: str = "medium"
     whisper_language: str | None = None
     whisper_endpoint: str = ""   # URL base do Whisper-GPU remoto (vazio = local)

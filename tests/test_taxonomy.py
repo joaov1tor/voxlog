@@ -27,7 +27,9 @@ def test_taxonomy_block_vazio_quando_nao_configurado():
 def test_taxonomy_block_lista_entidades_e_regra():
     bloco = taxonomy.taxonomy_block(["CASSI", "Lívio"], ["AgentOS"])
     assert "CASSI" in bloco and "Lívio" in bloco and "AgentOS" in bloco
-    assert "ferramenta é o MEIO" in bloco
+    # o bloco tem que ensinar a ORDEM de decisão e o desempate ferramenta × assunto
+    assert "COMO DECIDIR A NATUREZA" in bloco
+    assert 'nunca em "entidade"' in bloco
 
 
 def test_valid_natureza_rejeita_valor_inventado():

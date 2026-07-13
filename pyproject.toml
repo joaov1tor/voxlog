@@ -1,8 +1,27 @@
 [project]
 name = "voxlog"
-version = "0.1.0"
+version = "0.2.0"
 description = "Captura hibrida de audio no Mac -> notas no Obsidian"
+readme = "README.md"
 requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Joao Vitor Ribeiro Santos" }]
+keywords = ["obsidian", "whisper", "transcription", "meetings", "macos"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+# sem dependencias de terceiros: o pacote roda em stdlib pura.
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/joaov1tor/voxlog"
+Issues = "https://github.com/joaov1tor/voxlog/issues"
 
 [project.scripts]
 voxlog = "voxlog.cli:main"

@@ -34,6 +34,9 @@ class Config:
     produtos: list[str] = field(default_factory=list)
     # [glossario] "CACI" = "CASSI"  — corrige o que o transcritor ouve errado
     glossario: dict[str, str] = field(default_factory=dict)
+    # [taxonomia.pistas] Lívio = ["check-in", "APK"] — termos que denunciam a entidade
+    # quando o nome dela não é dito em voz alta na reunião
+    pistas: dict[str, list[str]] = field(default_factory=dict)
     voice_enabled: bool = False
     voice_diarize_provider: str = "elevenlabs"   # "elevenlabs" (STT dedicado, robusto) | "whisperx" (:5051, OOM na GPU 6GB)
     voice_diarize_endpoint: str = "http://localhost:5051"
@@ -74,6 +77,8 @@ def load_config(path: Path | None = None) -> Config:
         cfg.clientes = [str(c) for c in tax["clientes"]]
     if "produtos" in tax:
         cfg.produtos = [str(p) for p in tax["produtos"]]
+    if "pistas" in tax:
+        cfg.pistas = {str(k): [str(v) for v in vs] for k, vs in tax["pistas"].items()}
     glossario = data.get("glossario", {})
     if glossario:
         cfg.glossario = {str(k): str(v) for k, v in glossario.items()}

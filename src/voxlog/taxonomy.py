@@ -10,6 +10,7 @@ Nada aqui é hardcoded: clientes, produtos e correções vêm do voxlog.toml do 
 from __future__ import annotations
 
 import re
+import unicodedata
 
 NATUREZAS = ("cliente", "produto-interno", "gestao", "comercial", "pessoal")
 
@@ -25,7 +26,39 @@ def fix_transcript(texto: str, correcoes: dict[str, str]) -> str:
     return texto
 
 
-def taxonomy_block(clientes: list[str], produtos: list[str]) -> str:
+def pistas_presentes(texto: str, pistas: dict[str, list[str]]) -> dict[str, list[str]]:
+    """Quais entidades têm pista no texto, e quais pistas casaram.
+
+    O dono de um cliente raramente é citado nas calls dele: a reunião fala de
+    "check-in", "APK" e "fazenda", nunca o nome do cliente. Sem pista, o modelo não
+    tem como saber de quem é a conversa — e chuta.
+    """
+    achadas: dict[str, list[str]] = {}
+    alvo = _norm(texto)
+    for entidade, termos in (pistas or {}).items():
+        casaram = [t for t in termos if _norm(t) in alvo]
+        if casaram:
+            achadas[entidade] = casaram
+    return achadas
+
+
+def entidade_por_pista(pistas_achadas: dict[str, list[str]]) -> str:
+    """Entidade deduzida das pistas, quando elas são inequívocas.
+
+    O LLM é instável: no mesmo texto ele às vezes devolve a entidade e às vezes deixa
+    vazio. Quando as pistas apontam para UMA entidade só, isso é determinístico e não
+    precisa passar pelo modelo — usamos como rede de segurança.
+
+    Empate (pistas de duas entidades) devolve "": aí é ambíguo de verdade, e o palpite
+    do modelo vale mais que o nosso.
+    """
+    if len(pistas_achadas) == 1:
+        return next(iter(pistas_achadas))
+    return ""
+
+
+def taxonomy_block(clientes: list[str], produtos: list[str],
+                   pistas_achadas: dict[str, list[str]] | None = None) -> str:
     """Trecho do prompt que ensina o vocabulário do usuário. Vazio se ele não configurou."""
     if not clientes and not produtos:
         return ""
@@ -35,6 +68,13 @@ def taxonomy_block(clientes: list[str], produtos: list[str]) -> str:
         linhas.append(f"- Clientes: {', '.join(clientes)}")
     if produtos:
         linhas.append(f"- Produtos internos: {', '.join(produtos)}")
+
+    if pistas_achadas:
+        linhas += ["", "PISTAS ENCONTRADAS NESTA TRANSCRIÇÃO (fortes indícios de entidade —",
+                   "o nome da entidade pode nem ser dito em voz alta na reunião):"]
+        for entidade, termos in pistas_achadas.items():
+            linhas.append(f'- menciona {", ".join(repr(t) for t in termos)} → entidade provável: {entidade}')
+
     linhas += [
         "",
         "COMO DECIDIR A NATUREZA — siga nesta ordem e PARE no primeiro que se aplicar:",
@@ -66,3 +106,38 @@ def taxonomy_block(clientes: list[str], produtos: list[str]) -> str:
 def valid_natureza(valor: str) -> str:
     v = (valor or "").strip().lower()
     return v if v in NATUREZAS else ""
+
+
+def _norm(s: str) -> str:
+    """Normaliza p/ comparar: sem acento, sem caixa, sem espaço extra."""
+    s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode()
+    return " ".join(s.lower().split())
+
+
+def valid_entidade(valor: str, clientes: list[str], produtos: list[str]) -> str:
+    """Casa a entidade devolvida pelo modelo com o vocabulário configurado.
+
+    Sem isto o modelo inventa entidade — já apareceu "TBC" (a própria empresa) num
+    resumo, num campo que só deveria conter cliente ou produto conhecido. Entidade
+    fora do vocabulário vira "": melhor vazio que uma classificação fantasma.
+
+    Sem vocabulário configurado, aceita o que vier (o usuário não opinou).
+    """
+    conhecidas = [*clientes, *produtos]
+    if not conhecidas:
+        return (valor or "").strip()
+
+    alvo = _norm(valor)
+    if not alvo:
+        return ""
+
+    for nome in conhecidas:                       # match exato (ignorando acento/caixa)
+        if _norm(nome) == alvo:
+            return nome
+
+    for nome in conhecidas:                       # "Agente Pix" -> "Agente de Pagamento"? não.
+        n = _norm(nome)                           # mas "CASSI - Interno" -> "CASSI", sim.
+        if alvo in n.split() or n in alvo.split():
+            return nome
+
+    return ""

@@ -56,6 +56,13 @@ silence_keep = 0.3        # padding mantido em cada corte
 clientes = ["ClienteA", "ClienteB"]
 produtos = ["MeuProduto", "MeuAgente"]
 
+# Pistas: termos que denunciam a entidade quando o NOME dela não é dito em voz alta.
+# O dono de um cliente raramente é citado nas calls dele — a conversa fala do produto,
+# não do nome. Sem pista, o modelo chuta.
+[taxonomia.pistas]
+"ClienteA" = ["check-in", "APK", "fazenda"]
+"MeuAgente" = ["CNAB", "borderô"]
+
 # ===== Glossário (opcional) =====
 # O transcritor não conhece o vocabulário da sua operação. Aqui você conserta na marra,
 # antes do resumo: chave = como costuma sair errado, valor = a forma correta.

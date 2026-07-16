@@ -1,0 +1,11 @@
+# Dispara o voxlog whatsapp todo dia às 03:00. Persistent=true faz o run atrasado
+# executar no próximo boot se a máquina estiver desligada às 03:00.
+[Unit]
+Description=Dispara voxlog whatsapp às 03:00
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

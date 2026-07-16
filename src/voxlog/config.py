@@ -50,6 +50,12 @@ class Config:
     voice_silence_db: str = "-35dB"        # limiar do que conta como silêncio
     voice_silence_min_sec: float = 2.0     # só remove silêncios >= isto
     voice_silence_keep: float = 0.3        # padding mantido em cada corte (evita palavras coladas)
+    # WhatsApp — digest diário das conversas do bridge MCP corporativo. [whatsapp] no toml.
+    whatsapp_db: Path = field(
+        default_factory=lambda: Path.home() / ".whatsapp-mcp/whatsapp-bridge/store/messages.db")
+    whatsapp_bridge_url: str = "http://localhost:8085/api"
+    whatsapp_notes_dir: str = "🎙️ WhatsApp"
+    whatsapp_exclude_chats: list[str] = field(default_factory=list)
 
 
 def load_config(path: Path | None = None) -> Config:
@@ -102,4 +108,14 @@ def load_config(path: Path | None = None) -> Config:
         cfg.voice_silence_min_sec = float(voice["silence_min_sec"])
     if "silence_keep" in voice:
         cfg.voice_silence_keep = float(voice["silence_keep"])
+
+    wa = data.get("whatsapp", {})
+    if "messages_db" in wa:
+        cfg.whatsapp_db = _expand(wa["messages_db"])
+    if "bridge_url" in wa:
+        cfg.whatsapp_bridge_url = str(wa["bridge_url"])
+    if "notes_dir" in wa:
+        cfg.whatsapp_notes_dir = str(wa["notes_dir"])
+    if "exclude_chats" in wa:
+        cfg.whatsapp_exclude_chats = [str(c) for c in wa["exclude_chats"]]
     return cfg

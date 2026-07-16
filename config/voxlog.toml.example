@@ -70,3 +70,21 @@ produtos = ["MeuProduto", "MeuAgente"]
 "CACI" = "ClienteA"
 "Proteus" = "Protheus"
 "Gira" = "Jira"
+
+# ===== WhatsApp (opcional) =====
+# Gera um "digest" diário das SUAS conversas de WhatsApp (uma nota por chat + um
+# resumo do dia), transcrevendo os áudios e resumindo com o mesmo pipeline das
+# gravações. Depende de um bridge do WhatsApp (whatsapp-mcp / whatsmeow) que
+# mantém um SQLite com as mensagens e expõe um endpoint /download para as mídias.
+# Roda tipicamente num servidor via cron/systemd (veja setup/avell/voxlog-whatsapp.*).
+# Comando: `voxlog whatsapp` (processa ONTEM) ou `voxlog whatsapp --date 2026-07-13`.
+[whatsapp]
+# SQLite do bridge (somente leitura). Padrão: ~/.whatsapp-mcp/whatsapp-bridge/store/messages.db
+messages_db = "~/.whatsapp-mcp/whatsapp-bridge/store/messages.db"
+# API REST do bridge, usada só para baixar os áudios antes de transcrever.
+bridge_url  = "http://localhost:8085/api"
+# Subpasta do vault onde as notas de WhatsApp são criadas.
+notes_dir   = "🎙️ WhatsApp"
+# JIDs de chats/grupos a ignorar (barulhentos). Ex.: ["123@g.us", "456@g.us"].
+# Broadcasts e newsletters já são excluídos automaticamente.
+exclude_chats = []

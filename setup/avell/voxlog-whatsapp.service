@@ -1,0 +1,18 @@
+# voxlog whatsapp — digest diário das conversas do WhatsApp.
+# Unidade de USUÁRIO (systemd --user). Instale em ~/.config/systemd/user/ junto
+# com voxlog-whatsapp.timer, depois:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now voxlog-whatsapp.timer
+# %h expande para o HOME do usuário. Ajuste os caminhos se sua instalação diferir.
+[Unit]
+Description=voxlog — notas do WhatsApp do dia anterior
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# O resumidor padrão (codex) precisa do node no PATH. Ajuste se usar outro
+# resumidor ou se o voxlog não estiver em ~/.local/bin (uv/pipx).
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=VOXLOG_NO_UPDATE_CHECK=1
+ExecStart=%h/.local/bin/voxlog whatsapp --config %h/.config/voxlog/voxlog.toml

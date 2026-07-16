@@ -45,6 +45,11 @@ def main(argv: list[str] | None = None) -> int:
     pvs = sub.add_parser("voice-status", help="status do perfil de voz/diarização")
     pvs.add_argument("--config", default=str(_DEFAULT_CFG))
 
+    pw = sub.add_parser("whatsapp", help="gera notas/digest do WhatsApp do dia")
+    pw.add_argument("--date", default=None,
+                    help="dia a processar (YYYY-MM-DD); padrão: ontem")
+    pw.add_argument("--config", default=str(_DEFAULT_CFG))
+
     args = parser.parse_args(argv)
 
     if args.cmd == "init":
@@ -111,6 +116,15 @@ def _dispatch(args, cfg) -> int:
     if args.cmd == "voice-status":
         print(f"voice_enabled: {cfg.voice_enabled}")
         print(f"diarize_endpoint: {cfg.voice_diarize_endpoint}")
+        return 0
+
+    if args.cmd == "whatsapp":
+        from . import whatsapp
+        date_str = args.date or whatsapp.default_yesterday()
+        paths = whatsapp.process_whatsapp_day(cfg, date_str)
+        print(f"{len(paths)} notas/digest em {date_str}")
+        for p in paths:
+            print(str(p))
         return 0
 
     return 1

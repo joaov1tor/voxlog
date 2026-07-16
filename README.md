@@ -134,8 +134,36 @@ Caminhos/horários a ajustar: `~/.config/voxlog/voxlog.toml` (vault, whisper, re
 - **Não gera nota / erro:** veja o log em `<staging_dir>/../voxlog.log` (ex.: `~/voxlog/voxlog.log`).
 - **`whisper`/`codex` não encontrados:** o Hammerspoon roda com PATH mínimo — garanta os diretórios certos no `export PATH` do `init.lua`.
 
+## WhatsApp (opcional) 💬
+
+Além das gravações de voz, o voxlog gera um **digest diário das suas conversas de
+WhatsApp**: uma nota por chat (resumo, itens de ação, participantes) mais um resumo
+consolidado do dia, transcrevendo os áudios com o **mesmo** pipeline Whisper + LLM
+das gravações. As notas linkam `[[assunto]]`, então caem no mesmo grafo do Obsidian.
+
+Diferente do resto, isso não depende do Mac — roda tipicamente num **servidor**
+(cron/systemd), lendo de um **bridge do WhatsApp** que mantém um SQLite das mensagens
+e expõe um endpoint `/download` para as mídias (ex.: [`whatsapp-mcp`](https://github.com/lharries/whatsapp-mcp),
+baseado em whatsmeow). O voxlog **só lê** o SQLite (modo read-only) e baixa os áudios.
+
+```bash
+voxlog whatsapp                 # processa ONTEM (uso do cron)
+voxlog whatsapp --date 2026-07-13   # reprocessa um dia específico (idempotente)
+```
+
+1. Suba um bridge do WhatsApp (whatsapp-mcp ou equivalente) que grave em
+   `~/.whatsapp-mcp/whatsapp-bridge/store/messages.db` e sirva `/download`.
+2. Preencha a seção `[whatsapp]` do `voxlog.toml` (veja `config/voxlog.toml.example`).
+3. Agende o run diário com os units de exemplo em
+   [`setup/avell/voxlog-whatsapp.service`](setup/avell/voxlog-whatsapp.service) +
+   [`.timer`](setup/avell/voxlog-whatsapp.timer) (systemd `--user`, dispara 03:00).
+4. Se o vault mora em outra máquina, [`setup/mac/voxlog-whatsapp-sync.sh`](setup/mac/voxlog-whatsapp-sync.sh)
+   puxa as notas do servidor para o cofre local via `rclone` (one-way).
+
+Reprocessar é seguro: notas já resumidas são reaproveitadas, sem regastar LLM/Whisper.
+
 ## Stack
 
-Hammerspoon (Lua) · ffmpeg + BlackHole · openai-whisper (local) ou Whisper-GPU/web (OpenAI-compat) · Codex/Ollama (resumo) · Obsidian + Dataview · Python (cola/CLI).
+Hammerspoon (Lua) · ffmpeg + BlackHole · openai-whisper (local) ou Whisper-GPU/web (OpenAI-compat) · Codex/Ollama (resumo) · Obsidian + Dataview · WhatsApp via bridge whatsmeow (opcional) · Python (cola/CLI).
 
 > Roadmap: captura nativa sem BlackHole (Core Audio taps) e backends de resumo Claude/OpenAI prontos. Contribuições bem-vindas.
